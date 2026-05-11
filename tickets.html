@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soporte Tickets</title>
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.0.96/css/materialdesignicons.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f5f7 !important; }
+        .v-application { background: #f4f5f7 !important; }
+        .app-bar-custom { background: linear-gradient(135deg, #472268, #120C24) !important; border-bottom: 2px solid #F78F21 !important; }
+        .btn-teal { background: linear-gradient(135deg, #03AE8E, #027a64) !important; color: #fff !important; font-weight: 600 !important; }
+        .btn-naranja { background: linear-gradient(135deg, #F78F21, #ED4A24) !important; color: #fff !important; font-weight: 600 !important; }
+        .card-section { border-radius: 12px !important; border: 1px solid #e0e0e0 !important; }
+        .header-titulo { color: #472268; font-weight: 700; font-size: 1rem; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <v-app>
+        <v-app-bar class="app-bar-custom" flat>
+            <v-app-bar-title>
+                <img src="/pictures/logoKodigo.png" alt="Kodigo" style="height:36px;vertical-align:middle;margin-right:10px;" />
+                <span style="color:#fff;font-weight:600;">Sistema de Tickets</span>
+            </v-app-bar-title>
+            <template v-slot:append>
+                <a href="/dashboard.html" style="color:white;text-decoration:none;margin-right:16px;font-size:0.85rem;opacity:0.85;">📊 Dashboard</a>
+                <span class="mr-3 text-caption" style="color:rgba(255,255,255,0.7);">{{ usuarioActivo.nombre }}</span>
+                <v-btn icon="mdi-logout" variant="text" color="white" @click="logout"></v-btn>
+            </template>
+        </v-app-bar>
+
+        <v-main>
+            <v-container fluid class="pa-6">
+                <v-card class="mb-5 card-section" elevation="0">
+                    <v-card-title class="pa-4 pb-2 header-titulo">
+                        <v-icon color="#472268" class="mr-2">mdi-filter-outline</v-icon>Filtros de búsqueda
+                    </v-card-title>
+                    <v-card-text>
+                        <v-row>
+                            <v-col cols="12" md="4">
+                                <v-text-field v-model="filtros.numero_ticket" label="Número de ticket"
+                                    prepend-inner-icon="mdi-ticket" clearable variant="outlined" density="compact" color="#472268" />
+                            </v-col>
+                            <v-col cols="12" md="4">
+                                <v-text-field v-model="filtros.usuario_solicitante" label="Usuario solicitante"
+                                    prepend-inner-icon="mdi-account" clearable variant="outlined" density="compact" color="#472268" />
+                            </v-col>
+                            <v-col cols="12" md="4">
+                                <v-text-field v-model="filtros.titulo" label="Título"
+                                    prepend-inner-icon="mdi-magnify" clearable variant="outlined" density="compact" color="#472268" />
+                            </v-col>
+                        </v-row>
+                        <v-row>
+                            <v-col>
+                                <v-btn class="btn-teal mr-2" @click="buscar" :loading="cargando" prepend-icon="mdi-magnify">Buscar</v-btn>
+                                <v-btn variant="outlined" color="#472268" @click="limpiar" prepend-icon="mdi-refresh">Limpiar</v-btn>
+                            </v-col>
+                        </v-row>
+                    </v-card-text>
+                </v-card>
+
+                <v-card class="card-section" elevation="0">
+                    <v-card-title class="pa-4 pb-2 d-flex align-center">
+                        <span class="header-titulo">
+                            <v-icon color="#472268" class="mr-2">mdi-ticket-outline</v-icon>Resultados
+                        </span>
+                        <v-chip class="ml-2" color="#472268" size="small" variant="tonal">{{ total }} tickets</v-chip>
+                        <v-spacer />
+                        <v-btn class="btn-naranja" size="small" prepend-icon="mdi-plus" @click="abrirCrear">Nuevo Ticket</v-btn>
+                    </v-card-title>
+                    <v-data-table :headers="headers" :items="tickets" :loading="cargando" items-per-page="10" class="elevation-0">
+                        <template v-slot:item.prioridad="{ item }">
+                            <v-chip :color="colorPrioridad(item.prioridad)" size="small" variant="tonal">{{ item.prioridad }}</v-chip>
+                        </template>
+                        <template v-slot:item.estado="{ item }">
+                            <v-chip :color="colorEstado(item.estado)" size="small" variant="tonal">{{ item.estado }}</v-chip>
+                        </template>
+                        <template v-slot:item.fecha_creacion="{ item }">{{ formatFecha(item.fecha_creacion) }}</template>
+                        <template v-slot:item.acciones="{ item }">
+                            <div class="d-flex align-center ga-1">
+                                <v-btn size="x-small" variant="tonal" color="#406494" prepend-icon="mdi-eye"
+                                    :href="'/detalle.html?ticket=' + item.numero_ticket">Ver</v-btn>
+                                <v-btn size="x-small" variant="tonal" color="#03AE8E" prepend-icon="mdi-pencil"
+                                    @click="abrirEditar(item)">Editar</v-btn>
+                                <v-btn size="x-small" variant="tonal" color="#ED4A24" prepend-icon="mdi-delete"
+                                    @click="abrirEliminar(item)">Borrar</v-btn>
+                            </div>
+                        </template>
+                    </v-data-table>
+                </v-card>
+            </v-container>
+        </v-main>
+
+        <v-dialog v-model="dialogForm" max-width="560" persistent>
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#472268,#120C24);color:#fff;">
+                    <v-icon class="mr-2">{{ modoEditar ? 'mdi-pencil' : 'mdi-plus-circle' }}</v-icon>
+                    {{ modoEditar ? 'Editar Ticket' : 'Nuevo Ticket' }}
+                </v-card-title>
+                <v-card-text class="pa-5">
+                    <v-row>
+                        <v-col cols="12">
+                            <v-text-field v-model="form.usuario_solicitante" label="Usuario solicitante *"
+                                variant="outlined" density="compact" color="#472268" :disabled="modoEditar" />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field v-model="form.titulo" label="Título *" variant="outlined" density="compact" color="#472268" />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-textarea v-model="form.descripcion" label="Descripción *" variant="outlined" density="compact" color="#472268" rows="3" />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-select v-model="form.prioridad" label="Prioridad"
+                                :items="['Baja','Media','Alta','critica']" variant="outlined" density="compact" color="#472268" />
+                        </v-col>
+                        <v-col cols="12" md="6" v-if="modoEditar">
+                            <v-select v-model="form.estado" label="Estado"
+                                :items="['Abierto','En Progreso','En Espera','Cerrado']" variant="outlined" density="compact" color="#472268" />
+                        </v-col>
+                    </v-row>
+                    <v-alert v-if="errorForm" type="error" density="compact" class="mt-2">{{ errorForm }}</v-alert>
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" color="#472268" @click="dialogForm = false">Cancelar</v-btn>
+                    <v-btn class="btn-teal ml-2" :loading="guardando" @click="guardar">{{ modoEditar ? 'Actualizar' : 'Crear' }}</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="dialogEliminar" max-width="400">
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="color:#ED4A24;">
+                    <v-icon class="mr-2" color="#ED4A24">mdi-alert-circle</v-icon>Eliminar Ticket
+                </v-card-title>
+                <v-card-text>¿Confirmás la eliminación del ticket <strong>{{ ticketSeleccionado?.numero_ticket }}</strong>? Esta acción no se puede deshacer.</v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" @click="dialogEliminar = false">Cancelar</v-btn>
+                    <v-btn color="#ED4A24" variant="flat" :loading="guardando" @click="eliminar" class="ml-2">Eliminar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-snackbar v-model="snack.show" :color="snack.color" timeout="3000">{{ snack.texto }}</v-snackbar>
+    </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.0/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.js"></script>
+<script>
+const { createApp, ref } = Vue;
+const { createVuetify } = Vuetify;
+const vuetify = createVuetify();
+
+const usuarioActivo = JSON.parse(localStorage.getItem('usuario') || '{}');
+if (!usuarioActivo.id) window.location.href = '/index.html';
+
+const API     = '/api/soporte';
+const HEADERS = { 'Content-Type': 'application/json' };
+
+createApp({
+    setup() {
+        const filtros        = ref({ numero_ticket: '', usuario_solicitante: '', titulo: '' });
+        const tickets        = ref([]);
+        const total          = ref(0);
+        const cargando       = ref(false);
+        const snack          = ref({ show: false, color: 'green', texto: '' });
+        const dialogForm     = ref(false);
+        const dialogEliminar = ref(false);
+        const modoEditar     = ref(false);
+        const guardando      = ref(false);
+        const errorForm      = ref('');
+        const ticketSeleccionado = ref(null);
+
+        const formVacio = () => ({
+            usuario_solicitante: usuarioActivo.username || '',
+            titulo: '', descripcion: '', prioridad: 'Media', estado: 'Abierto'
+        });
+        const form = ref(formVacio());
+
+        const headers = [
+            { title: 'Ticket',      key: 'numero_ticket' },
+            { title: 'Solicitante', key: 'usuario_solicitante' },
+            { title: 'Título',      key: 'titulo' },
+            { title: 'Prioridad',   key: 'prioridad' },
+            { title: 'Estado',      key: 'estado' },
+            { title: 'Fecha',       key: 'fecha_creacion' },
+            { title: 'Acciones',    key: 'acciones', sortable: false },
+        ];
+
+        const mostrarSnack   = (texto, color = 'green') => snack.value = { show: true, color, texto };
+        const formatFecha    = (f) => f ? new Date(f).toLocaleString('es-SV') : '-';
+        const colorEstado    = (e) => ({ 'Abierto': '#406494', 'En Progreso': '#F78F21', 'En Espera': '#472268', 'Cerrado': '#03AE8E' }[e] || 'grey');
+        const colorPrioridad = (p) => ({ 'critica': '#ED4A24', 'Alta': '#F78F21', 'Media': '#406494', 'Baja': '#03AE8E' }[p] || 'grey');
+
+        const buscar = async () => {
+            cargando.value = true;
+            try {
+                const params = new URLSearchParams();
+                if (filtros.value.numero_ticket)       params.append('numero_ticket', filtros.value.numero_ticket);
+                if (filtros.value.usuario_solicitante) params.append('usuario_solicitante', filtros.value.usuario_solicitante);
+                if (filtros.value.titulo)              params.append('titulo', filtros.value.titulo);
+
+                const res = await fetch(`${API}?${params}`, { credentials: 'include' });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                const vistos = new Set();
+                tickets.value = data.data.filter(t => {
+                    if (vistos.has(t.numero_ticket)) return false;
+                    vistos.add(t.numero_ticket); return true;
+                });
+                total.value = tickets.value.length;
+            } catch (e) {
+                mostrarSnack('Error al consultar la API', 'red');
+            } finally {
+                cargando.value = false;
+            }
+        };
+
+        const limpiar = () => { filtros.value = { numero_ticket: '', usuario_solicitante: '', titulo: '' }; tickets.value = []; total.value = 0; };
+
+        const abrirCrear  = () => { modoEditar.value = false; form.value = formVacio(); errorForm.value = ''; dialogForm.value = true; };
+        const abrirEditar = (item) => {
+            modoEditar.value = true; ticketSeleccionado.value = item;
+            form.value = { usuario_solicitante: item.usuario_solicitante, titulo: item.titulo, descripcion: item.descripcion, prioridad: item.prioridad, estado: item.estado };
+            errorForm.value = ''; dialogForm.value = true;
+        };
+
+        const guardar = async () => {
+            errorForm.value = '';
+            if (!form.value.usuario_solicitante || !form.value.titulo || !form.value.descripcion) {
+                errorForm.value = 'Completá los campos requeridos (*)'; return;
+            }
+            guardando.value = true;
+            try {
+                let res;
+                if (modoEditar.value) {
+                    res = await fetch(`${API}/${ticketSeleccionado.value.id}`, { method: 'PUT', headers: HEADERS, credentials: 'include', body: JSON.stringify(form.value) });
+                } else {
+                    res = await fetch(API, { method: 'POST', headers: HEADERS, credentials: 'include', body: JSON.stringify(form.value) });
+                }
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                if (!res.ok) { errorForm.value = data.error || 'Error al guardar'; return; }
+                dialogForm.value = false;
+                mostrarSnack(modoEditar.value ? 'Ticket actualizado ✓' : 'Ticket creado ✓');
+                await buscar();
+            } catch (e) {
+                errorForm.value = 'Error de conexión';
+            } finally {
+                guardando.value = false;
+            }
+        };
+
+        const abrirEliminar = (item) => { ticketSeleccionado.value = item; dialogEliminar.value = true; };
+        const eliminar = async () => {
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/${ticketSeleccionado.value.id}`, { method: 'DELETE', credentials: 'include' });
+                if (res.status === 401) { logout(); return; }
+                if (!res.ok) { mostrarSnack('Error al eliminar', 'red'); return; }
+                dialogEliminar.value = false;
+                mostrarSnack('Ticket eliminado ✓', '#ED4A24');
+                await buscar();
+            } catch (e) {
+                mostrarSnack('Error de conexión', 'red');
+            } finally {
+                guardando.value = false;
+            }
+        };
+
+        const logout = async () => {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            localStorage.removeItem('usuario');
+            window.location.href = '/index.html';
+        };
+
+        buscar();
+
+        return {
+            filtros, tickets, total, cargando, headers, snack, form,
+            dialogForm, dialogEliminar, modoEditar, guardando, errorForm,
+            ticketSeleccionado, usuarioActivo,
+            buscar, limpiar, guardar, eliminar, logout,
+            abrirCrear, abrirEditar, abrirEliminar,
+            colorEstado, colorPrioridad, formatFecha
+        };
+    }
+}).use(vuetify).mount('#app');
+</script>
+</body>
+</html>

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Soporte Kodigo</title>
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.0.96/css/materialdesignicons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #0d0a1a !important; }
+        .v-application { background: #0d0a1a !important; }
+
+        .app-bar-custom {
+            background: linear-gradient(135deg, #472268, #120C24) !important;
+            border-bottom: 2px solid #F78F21 !important;
+        }
+
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 700px)  { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+        .kpi-card {
+            border-radius: 14px;
+            padding: 18px 16px 14px;
+            position: relative;
+            overflow: hidden;
+            cursor: default;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: -30px; right: -30px;
+            width: 90px; height: 90px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.07);
+        }
+        .kpi-icon { font-size: 1.6rem; margin-bottom: 8px; opacity: 0.9; }
+        .kpi-valor {
+            font-size: 2.4rem; font-weight: 900; color: #fff;
+            line-height: 1; font-variant-numeric: tabular-nums;
+        }
+        .kpi-label {
+            font-size: 0.7rem; color: rgba(255,255,255,0.65);
+            text-transform: uppercase; letter-spacing: 1.2px; margin-top: 5px;
+        }
+
+        /* Chart cards */
+        .chart-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        @media (max-width: 1100px) { .chart-row { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 600px)  { .chart-row { grid-template-columns: 1fr; } }
+
+        .chart-card {
+            background: #1a1230;
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 14px;
+            padding: 16px;
+            position: relative;
+        }
+        .chart-card-wide {
+            background: #1a1230;
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 14px;
+            padding: 16px;
+        }
+        .chart-title {
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .chart-title span { color: #F78F21; }
+        .chart-box { width: 100%; height: 220px; }
+        .chart-box-wide { width: 100%; height: 200px; }
+
+        /* Tabla reciente */
+        .tabla-reciente {
+            background: #1a1230;
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        .tr-header { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap: 8px; padding: 8px 12px; }
+        .tr-row { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap: 8px; padding: 10px 12px; border-radius: 8px; margin-bottom: 4px; }
+        .tr-row:nth-child(odd) { background: rgba(255,255,255,0.03); }
+        .tr-cell { font-size: 0.8rem; color: rgba(255,255,255,0.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tr-cell-hdr { font-size: 0.7rem; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 1px; }
+
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 20px;
+            font-size: 0.7rem; font-weight: 700;
+        }
+
+        .container-dash { max-width: 1600px; margin: 0 auto; padding: 16px; }
+
+        /* Animación contador */
+        @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+        .kpi-card { animation: fadeUp 0.4s ease both; }
+        .kpi-card:nth-child(1) { animation-delay: 0.05s; }
+        .kpi-card:nth-child(2) { animation-delay: 0.10s; }
+        .kpi-card:nth-child(3) { animation-delay: 0.15s; }
+        .kpi-card:nth-child(4) { animation-delay: 0.20s; }
+        .kpi-card:nth-child(5) { animation-delay: 0.25s; }
+        .kpi-card:nth-child(6) { animation-delay: 0.30s; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <v-app theme="dark">
+        <v-app-bar class="app-bar-custom" flat>
+            <v-btn icon="mdi-arrow-left" color="white" variant="text" href="/tickets.html"></v-btn>
+            <v-app-bar-title>
+                <img src="/pictures/logoKodigo.png" alt="Kodigo" style="height:34px;vertical-align:middle;margin-right:10px;" />
+                <span style="color:#fff;font-weight:700;letter-spacing:-0.5px;">Dashboard de Soporte</span>
+            </v-app-bar-title>
+            <template v-slot:append>
+                <span style="color:rgba(255,255,255,0.5);font-size:0.75rem;margin-right:16px;">{{ fechaActual }}</span>
+                <span class="mr-3 text-caption" style="color:rgba(255,255,255,0.7);">{{ usuarioActivo.nombre }}</span>
+                <v-btn icon="mdi-logout" variant="text" color="white" @click="logout"></v-btn>
+            </template>
+        </v-app-bar>
+
+        <v-main>
+            <div class="container-dash">
+
+                <!-- CARGANDO -->
+                <div v-if="cargando" style="display:flex;justify-content:center;align-items:center;height:60vh;">
+                    <v-progress-circular indeterminate color="#F78F21" size="56"></v-progress-circular>
+                </div>
+
+                <template v-else>
+
+                    <!-- KPIs -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card" style="background:linear-gradient(135deg,#472268,#2d1650);">
+                            <div class="kpi-icon">🎫</div>
+                            <div class="kpi-valor">{{ kpis.total }}</div>
+                            <div class="kpi-label">Total Tickets</div>
+                        </div>
+                        <div class="kpi-card" style="background:linear-gradient(135deg,#406494,#2a4570);">
+                            <div class="kpi-icon">🔓</div>
+                            <div class="kpi-valor">{{ kpis.abiertos }}</div>
+                            <div class="kpi-label">Abiertos</div>
+                        </div>
+                        <div class="kpi-card" style="background:linear-gradient(135deg,#F78F21,#c47010);">
+                            <div class="kpi-icon">⏳</div>
+                            <div class="kpi-valor">{{ kpis.en_progreso }}</div>
+                            <div class="kpi-label">En Progreso</div>
+                        </div>
+                        <div class="kpi-card" style="background:linear-gradient(135deg,#472268,#2d1650);">
+                            <div class="kpi-icon">⏸️</div>
+                            <div class="kpi-valor">{{ kpis.en_espera }}</div>
+                            <div class="kpi-label">En Espera</div>
+                        </div>
+                        <div class="kpi-card" style="background:linear-gradient(135deg,#03AE8E,#027a64);">
+                            <div class="kpi-icon">✅</div>
+                            <div class="kpi-valor">{{ kpis.cerrados }}</div>
+                            <div class="kpi-label">Cerrados</div>
+                        </div>
+                        <div class="kpi-card" style="background:linear-gradient(135deg,#ED4A24,#a83318);">
+                            <div class="kpi-icon">🔴</div>
+                            <div class="kpi-valor">{{ kpis.pendientes }}</div>
+                            <div class="kpi-label">Pendientes</div>
+                        </div>
+                    </div>
+
+                    <!-- FILA GRÁFICOS -->
+                    <div class="chart-row">
+                        <div class="chart-card">
+                            <div class="chart-title"><span>◉</span> Por Estado</div>
+                            <div id="chartEstado" class="chart-box"></div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-title"><span>▮</span> Por Prioridad</div>
+                            <div id="chartPrioridad" class="chart-box"></div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-title"><span>◎</span> Resolución</div>
+                            <div id="chartGauge" class="chart-box"></div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-title"><span>▤</span> Top Solicitantes</div>
+                            <div id="chartSolicitantes" class="chart-box"></div>
+                        </div>
+                    </div>
+
+                    <!-- TABLA TICKETS RECIENTES -->
+                    <div class="tabla-reciente">
+                        <div class="chart-title" style="margin-bottom:16px;"><span>≡</span> Tickets Recientes</div>
+                        <div class="tr-header">
+                            <div class="tr-cell-hdr">Ticket</div>
+                            <div class="tr-cell-hdr">Solicitante</div>
+                            <div class="tr-cell-hdr">Prioridad</div>
+                            <div class="tr-cell-hdr">Estado</div>
+                        </div>
+                        <div v-for="t in ticketsRecientes" :key="t.numero_ticket" class="tr-row">
+                            <div class="tr-cell" style="color:#F78F21;font-weight:600;">{{ t.numero_ticket }}</div>
+                            <div class="tr-cell">{{ t.usuario_solicitante }}</div>
+                            <div class="tr-cell">
+                                <span class="badge" :style="{ background: bgPrioridad(t.prioridad) + '33', color: bgPrioridad(t.prioridad) }">
+                                    {{ t.prioridad }}
+                                </span>
+                            </div>
+                            <div class="tr-cell">
+                                <span class="badge" :style="{ background: bgEstado(t.estado) + '33', color: bgEstado(t.estado) }">
+                                    {{ t.estado }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                </template>
+            </div>
+        </v-main>
+    </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.0/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.js"></script>
+<script>
+const { createApp, ref, onMounted } = Vue;
+const { createVuetify } = Vuetify;
+const vuetify = createVuetify();
+
+const usuarioActivo = JSON.parse(localStorage.getItem('usuario') || '{}');
+if (!usuarioActivo.id) window.location.href = '/index.html';
+
+const COLORES_ESTADO    = { 'Abierto': '#406494', 'En Progreso': '#F78F21', 'En Espera': '#472268', 'Cerrado': '#03AE8E' };
+const COLORES_PRIORIDAD = { 'critica': '#ED4A24', 'Alta': '#F78F21', 'Media': '#406494', 'Baja': '#03AE8E' };
+
+createApp({
+    setup() {
+        const cargando        = ref(true);
+        const kpis            = ref({});
+        const ticketsRecientes = ref([]);
+        const fechaActual     = new Date().toLocaleDateString('es-SV', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+        const bgEstado    = (e) => COLORES_ESTADO[e]    || '#888';
+        const bgPrioridad = (p) => COLORES_PRIORIDAD[p] || '#888';
+
+        const logout = async () => {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            localStorage.removeItem('usuario');
+            window.location.href = '/index.html';
+        };
+
+        // ── GRÁFICO DONA — estado ──────────────────────────────
+        const renderEstado = (datos) => {
+            const c = echarts.init(document.getElementById('chartEstado'), 'dark');
+            c.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                legend: { bottom: 0, textStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 10 } },
+                series: [{
+                    type: 'pie', radius: ['42%', '68%'], center: ['50%', '44%'],
+                    itemStyle: { borderRadius: 5, borderColor: '#1a1230', borderWidth: 2 },
+                    label: { show: false },
+                    emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold', color: '#fff' } },
+                    data: datos.map(d => ({
+                        name: d.estado, value: d.total,
+                        itemStyle: { color: COLORES_ESTADO[d.estado] || '#888' }
+                    }))
+                }]
+            });
+            window.addEventListener('resize', () => c.resize());
+        };
+
+        // ── GRÁFICO BARRAS — prioridad ─────────────────────────
+        const renderPrioridad = (datos) => {
+            const c = echarts.init(document.getElementById('chartPrioridad'), 'dark');
+            c.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                grid: { left: '4%', right: '4%', bottom: '12%', top: '4%', containLabel: true },
+                xAxis: { type: 'category', data: datos.map(d => d.prioridad), axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10 }, axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
+                yAxis: { type: 'value', minInterval: 1, axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+                series: [{
+                    type: 'bar', barWidth: '50%',
+                    itemStyle: { borderRadius: [6, 6, 0, 0] },
+                    label: { show: true, position: 'top', color: '#fff', fontSize: 11, fontWeight: 'bold' },
+                    data: datos.map(d => ({ value: d.total, itemStyle: { color: COLORES_PRIORIDAD[d.prioridad] || '#888' } }))
+                }]
+            });
+            window.addEventListener('resize', () => c.resize());
+        };
+
+        // ── GAUGE — % resueltos ────────────────────────────────
+        const renderGauge = (kpis) => {
+            const c = echarts.init(document.getElementById('chartGauge'), 'dark');
+            const pct = kpis.total > 0 ? Math.round((kpis.cerrados / kpis.total) * 100) : 0;
+            c.setOption({
+                backgroundColor: 'transparent',
+                series: [{
+                    type: 'gauge',
+                    center: ['50%', '60%'],
+                    radius: '85%',
+                    startAngle: 200, endAngle: -20,
+                    min: 0, max: 100,
+                    splitNumber: 5,
+                    axisLine: {
+                        lineStyle: { width: 16, color: [[pct/100, '#03AE8E'], [1, 'rgba(255,255,255,0.08)']] }
+                    },
+                    axisTick: { show: false },
+                    splitLine: { show: false },
+                    axisLabel: { show: false },
+                    pointer: { show: false },
+                    detail: {
+                        valueAnimation: true,
+                        formatter: '{value}%',
+                        color: '#03AE8E', fontSize: 28, fontWeight: 'bold',
+                        offsetCenter: [0, '-10%']
+                    },
+                    title: { offsetCenter: [0, '25%'], color: 'rgba(255,255,255,0.4)', fontSize: 11 },
+                    data: [{ value: pct, name: 'Tasa de resolución' }]
+                }]
+            });
+            window.addEventListener('resize', () => c.resize());
+        };
+
+        // ── BARRAS HORIZONTAL — solicitantes ──────────────────
+        const renderSolicitantes = (datos) => {
+            const c = echarts.init(document.getElementById('chartSolicitantes'), 'dark');
+            const nombres = datos.map(d => {
+                const n = d.usuario_solicitante;
+                return n.length > 18 ? n.substring(0, 16) + '…' : n;
+            }).reverse();
+            const totales = datos.map(d => d.total).reverse();
+            c.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                grid: { left: '4%', right: '10%', bottom: '4%', top: '4%', containLabel: true },
+                xAxis: { type: 'value', minInterval: 1, axisLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 9 }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+                yAxis: { type: 'category', data: nombres, axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 9 } },
+                series: [{
+                    type: 'bar', barWidth: '55%',
+                    itemStyle: { borderRadius: [0, 5, 5, 0], color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#472268' }, { offset: 1, color: '#03AE8E' }] } },
+                    label: { show: true, position: 'right', color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 'bold' },
+                    data: totales
+                }]
+            });
+            window.addEventListener('resize', () => c.resize());
+        };
+
+        onMounted(async () => {
+            try {
+                // Dashboard stats
+                const resDash = await fetch('/api/soporte/dashboard', { credentials: 'include' });
+                if (resDash.status === 401) { logout(); return; }
+                const dash = await resDash.json();
+                kpis.value = dash.kpis;
+
+                // Tickets recientes
+                const resTix = await fetch('/api/soporte', { credentials: 'include' });
+                const tix    = await resTix.json();
+                const vistos = new Set();
+                ticketsRecientes.value = tix.data.filter(t => {
+                    if (vistos.has(t.numero_ticket)) return false;
+                    vistos.add(t.numero_ticket); return true;
+                }).slice(0, 5);
+
+                cargando.value = false;
+                await new Promise(r => setTimeout(r, 80));
+
+                renderEstado(dash.por_estado);
+                renderPrioridad(dash.por_prioridad);
+                renderGauge(dash.kpis);
+                renderSolicitantes(dash.por_solicitante);
+
+            } catch (e) {
+                console.error('Error:', e);
+                cargando.value = false;
+            }
+        });
+
+        return { cargando, kpis, ticketsRecientes, usuarioActivo, fechaActual, bgEstado, bgPrioridad, logout };
+    }
+}).use(vuetify).mount('#app');
+</script>
+</body>
+</html>

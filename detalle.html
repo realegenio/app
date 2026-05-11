@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalle del Ticket</title>
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.0.96/css/materialdesignicons.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f5f7 !important; }
+        .v-application { background: #f4f5f7 !important; }
+        .app-bar-custom { background: linear-gradient(135deg, #472268, #120C24) !important; border-bottom: 2px solid #F78F21 !important; }
+        .card-section { border-radius: 12px !important; border: 1px solid #e0e0e0 !important; }
+        .header-titulo { color: #472268; font-weight: 700; font-size: 1rem; }
+        .btn-teal { background: linear-gradient(135deg, #03AE8E, #027a64) !important; color: #fff !important; font-weight: 600 !important; }
+        .timeline-card { border-left: 3px solid #03AE8E; border-radius: 8px !important; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <v-app>
+        <v-app-bar class="app-bar-custom" flat>
+            <v-btn icon="mdi-arrow-left" color="white" variant="text" @click="volver"></v-btn>
+            <v-app-bar-title>
+                <img src="/pictures/logoKodigo.png" alt="Kodigo" style="height:36px;vertical-align:middle;margin-right:10px;" />
+                <span style="color:#fff;font-weight:600;">Detalle del Ticket</span>
+            </v-app-bar-title>
+            <span class="mr-3 text-caption" style="color:rgba(255,255,255,0.7);">{{ usuarioActivo.nombre }}</span>
+            <v-btn icon="mdi-logout" variant="text" color="white" @click="logout"></v-btn>
+        </v-app-bar>
+
+        <v-main>
+            <v-container fluid class="pa-6">
+                <v-row v-if="cargando" justify="center" class="mt-10">
+                    <v-progress-circular indeterminate color="#472268"></v-progress-circular>
+                </v-row>
+
+                <template v-else-if="ticket">
+                    <v-card class="mb-5 card-section" elevation="0">
+                        <v-card-title class="pa-4 d-flex align-center flex-wrap gap-2">
+                            <span class="header-titulo">{{ ticket.titulo }}</span>
+                            <v-chip :color="colorPrioridad(ticket.prioridad)" size="small" variant="tonal" class="ml-2">{{ ticket.prioridad }}</v-chip>
+                            <v-chip :color="colorEstado(ticket.estado)" size="small" variant="tonal" class="ml-2">{{ ticket.estado }}</v-chip>
+                        </v-card-title>
+                        <v-card-text>
+                            <v-row>
+                                <v-col cols="12" md="4">
+                                    <div class="text-caption text-grey">Número de ticket</div>
+                                    <div class="font-weight-medium">{{ ticket.numero_ticket }}</div>
+                                </v-col>
+                                <v-col cols="12" md="4">
+                                    <div class="text-caption text-grey">Solicitante</div>
+                                    <div class="font-weight-medium">{{ ticket.usuario_solicitante }}</div>
+                                </v-col>
+                                <v-col cols="12" md="4">
+                                    <div class="text-caption text-grey">Fecha de creación</div>
+                                    <div class="font-weight-medium">{{ formatFecha(ticket.fecha_creacion) }}</div>
+                                </v-col>
+                                <v-col cols="12" class="mt-2">
+                                    <div class="text-caption text-grey">Descripción</div>
+                                    <div>{{ ticket.descripcion }}</div>
+                                </v-col>
+                            </v-row>
+                        </v-card-text>
+                    </v-card>
+
+                    <v-card class="card-section" elevation="0">
+                        <v-card-title class="pa-4 d-flex align-center">
+                            <span class="header-titulo">
+                                <v-icon color="#472268" class="mr-1">mdi-timeline-text</v-icon>Seguimiento
+                            </span>
+                            <v-chip class="ml-2" color="#472268" size="small" variant="tonal">{{ seguimientos.length }} comentarios</v-chip>
+                            <v-spacer />
+                            <v-btn class="btn-teal" size="small" prepend-icon="mdi-plus" @click="abrirAgregar">Agregar</v-btn>
+                        </v-card-title>
+                        <v-card-text>
+                            <v-alert v-if="seguimientos.length === 0" type="info" variant="tonal" density="compact">Sin comentarios aún.</v-alert>
+                            <v-timeline v-else side="end" density="compact">
+                                <v-timeline-item v-for="s in seguimientos" :key="s.seguimiento_id" dot-color="#03AE8E" size="small">
+                                    <v-card class="mb-2 timeline-card" elevation="0">
+                                        <v-card-text class="pa-3">
+                                            <div class="d-flex justify-space-between align-center mb-1 flex-wrap gap-1">
+                                                <span class="font-weight-medium" style="color:#472268;">{{ s.usuario_autor }}</span>
+                                                <div class="d-flex align-center">
+                                                    <span class="text-caption text-grey mr-2">{{ formatFecha(s.seguimiento_fecha) }}</span>
+                                                    <template v-if="esAdmin">
+                                                        <v-btn size="x-small" variant="tonal" color="#03AE8E" prepend-icon="mdi-pencil" class="mr-1" @click="abrirEditar(s)">Editar</v-btn>
+                                                        <v-btn size="x-small" variant="tonal" color="#ED4A24" prepend-icon="mdi-delete" @click="abrirEliminar(s)">Borrar</v-btn>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                            <div>{{ s.comentario }}</div>
+                                        </v-card-text>
+                                    </v-card>
+                                </v-timeline-item>
+                            </v-timeline>
+                        </v-card-text>
+                    </v-card>
+                </template>
+
+                <v-alert v-else type="error" class="mt-4">No se encontró el ticket.</v-alert>
+            </v-container>
+        </v-main>
+
+        <v-dialog v-model="dialogForm" max-width="500" persistent>
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#472268,#120C24);color:#fff;">
+                    <v-icon class="mr-2">{{ modoEditar ? 'mdi-pencil' : 'mdi-comment-plus' }}</v-icon>
+                    {{ modoEditar ? 'Editar comentario' : 'Nuevo comentario' }}
+                </v-card-title>
+                <v-card-text class="pa-5">
+                    <v-textarea v-model="formComentario" label="Comentario *" variant="outlined" color="#472268" rows="4" auto-grow />
+                    <v-alert v-if="errorForm" type="error" density="compact" class="mt-2">{{ errorForm }}</v-alert>
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" color="#472268" @click="dialogForm = false">Cancelar</v-btn>
+                    <v-btn class="btn-teal ml-2" :loading="guardando" @click="guardar">{{ modoEditar ? 'Actualizar' : 'Agregar' }}</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="dialogEliminar" max-width="400">
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="color:#ED4A24;">
+                    <v-icon class="mr-2" color="#ED4A24">mdi-alert-circle</v-icon>Eliminar comentario
+                </v-card-title>
+                <v-card-text>¿Confirmás la eliminación? Esta acción no se puede deshacer.</v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" @click="dialogEliminar = false">Cancelar</v-btn>
+                    <v-btn color="#ED4A24" variant="flat" :loading="guardando" @click="eliminar" class="ml-2">Eliminar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-snackbar v-model="snack.show" :color="snack.color" timeout="3000">{{ snack.texto }}</v-snackbar>
+    </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.0/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.js"></script>
+<script>
+const { createApp, ref, onMounted, computed } = Vue;
+const { createVuetify } = Vuetify;
+const vuetify = createVuetify();
+
+// Solo datos del usuario — token va en cookie httpOnly
+const usuarioActivo = JSON.parse(localStorage.getItem('usuario') || '{}');
+if (!usuarioActivo.id) window.location.href = '/index.html';
+
+const HEADERS = { 'Content-Type': 'application/json' };
+
+createApp({
+    setup() {
+        const ticket           = ref(null);
+        const seguimientos     = ref([]);
+        const cargando         = ref(true);
+        const snack            = ref({ show: false, color: 'green', texto: '' });
+        const dialogForm       = ref(false);
+        const dialogEliminar   = ref(false);
+        const modoEditar       = ref(false);
+        const guardando        = ref(false);
+        const errorForm        = ref('');
+        const formComentario   = ref('');
+        const itemSeleccionado = ref(null);
+
+        const esAdmin      = computed(() => usuarioActivo.role === 'admin');
+        const mostrarSnack = (texto, color = 'green') => snack.value = { show: true, color, texto };
+
+        const cargar = async (soloSeguimientos = false) => {
+            const params       = new URLSearchParams(window.location.search);
+            const numeroTicket = params.get('ticket');
+            if (!numeroTicket) { cargando.value = false; return; }
+            try {
+                const res  = await fetch(`/api/soporte?numero_ticket=${numeroTicket}`, { credentials: 'include' });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                if (data.data.length > 0) {
+                    if (!soloSeguimientos) ticket.value = data.data[0];
+                    seguimientos.value = data.data.filter(s => s.seguimiento_id);
+                }
+            } catch (e) {
+                console.error('Error:', e);
+            } finally {
+                cargando.value = false;
+            }
+        };
+
+        onMounted(() => cargar());
+
+        const abrirAgregar = () => { modoEditar.value = false; formComentario.value = ''; errorForm.value = ''; dialogForm.value = true; };
+        const abrirEditar  = (item) => { modoEditar.value = true; itemSeleccionado.value = item; formComentario.value = item.comentario; errorForm.value = ''; dialogForm.value = true; };
+
+        const guardar = async () => {
+            errorForm.value = '';
+            if (!formComentario.value.trim()) { errorForm.value = 'El comentario no puede estar vacío.'; return; }
+            guardando.value = true;
+            try {
+                let res;
+                if (modoEditar.value) {
+                    res = await fetch(`/api/soporte/seg/${itemSeleccionado.value.seguimiento_id}`, {
+                        method: 'PUT', headers: HEADERS, credentials: 'include',
+                        body: JSON.stringify({ comentario: formComentario.value })
+                    });
+                } else {
+                    res = await fetch(`/api/soporte/${ticket.value.id}/seguimiento`, {
+                        method: 'POST', headers: HEADERS, credentials: 'include',
+                        body: JSON.stringify({
+                            usuario_autor: usuarioActivo.username,
+                            comentario:    formComentario.value,
+                            ticketData: {
+                                numero_ticket:       ticket.value.numero_ticket,
+                                titulo:              ticket.value.titulo,
+                                usuario_solicitante: ticket.value.usuario_solicitante,
+                                estado:              ticket.value.estado,
+                                prioridad:           ticket.value.prioridad
+                            }
+                        })
+                    });
+                }
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                if (!res.ok) { errorForm.value = data.error || 'Error al guardar'; return; }
+                dialogForm.value = false;
+                mostrarSnack(modoEditar.value ? 'Comentario actualizado ✓' : 'Comentario agregado ✓');
+                await cargar(true);
+            } catch (e) {
+                errorForm.value = 'Error de conexión';
+            } finally {
+                guardando.value = false;
+            }
+        };
+
+        const abrirEliminar = (item) => { itemSeleccionado.value = item; dialogEliminar.value = true; };
+        const eliminar = async () => {
+            guardando.value = true;
+            try {
+                const res = await fetch(`/api/soporte/seg/${itemSeleccionado.value.seguimiento_id}`, {
+                    method: 'DELETE', credentials: 'include'
+                });
+                if (res.status === 401) { logout(); return; }
+                if (!res.ok) { mostrarSnack('Error al eliminar', 'red'); return; }
+                dialogEliminar.value = false;
+                mostrarSnack('Comentario eliminado ✓', '#ED4A24');
+                await cargar(true);
+            } catch (e) {
+                mostrarSnack('Error de conexión', 'red');
+            } finally {
+                guardando.value = false;
+            }
+        };
+
+        const volver = () => window.history.back();
+        const logout = async () => {
+            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            localStorage.removeItem('usuario');
+            window.location.href = '/index.html';
+        };
+
+        const formatFecha    = (f) => f ? new Date(f).toLocaleString('es-SV') : '-';
+        const colorEstado    = (e) => ({ 'Abierto': '#406494', 'En Progreso': '#F78F21', 'En Espera': '#472268', 'Cerrado': '#03AE8E' }[e] || 'grey');
+        const colorPrioridad = (p) => ({ 'critica': '#ED4A24', 'Alta': '#F78F21', 'Media': '#406494', 'Baja': '#03AE8E' }[p] || 'grey');
+
+        return {
+            ticket, seguimientos, cargando, snack, esAdmin, usuarioActivo,
+            dialogForm, dialogEliminar, modoEditar, guardando, errorForm, formComentario,
+            abrirAgregar, abrirEditar, abrirEliminar, guardar, eliminar,
+            volver, logout, formatFecha, colorEstado, colorPrioridad
+        };
+    }
+}).use(vuetify).mount('#app');
+</script>
+</body>
+</html>

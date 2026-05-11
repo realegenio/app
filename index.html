@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Soporte Kodigo</title>
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.7.2/dist/vuetify.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet">
+    <style>
+        body { margin: 0; background: #120C24; }
+        .login-bg { min-height: 100vh; background: #120C24; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+        .login-bg::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(3,174,142,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(3,174,142,0.05) 1px, transparent 1px); background-size: 40px 40px; }
+        .login-bg::after { content: ''; position: absolute; width: 600px; height: 600px; background: radial-gradient(circle, rgba(71,34,104,0.4) 0%, transparent 70%); top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+        .login-card { position: relative; z-index: 1; width: 100%; max-width: 420px; background: #1a1230 !important; border: 1px solid rgba(3,174,142,0.25) !important; border-radius: 16px !important; }
+        .brand-bar { background: linear-gradient(135deg, #472268, #2a1545); border-bottom: 2px solid #F78F21; padding: 24px 32px 20px; border-radius: 16px 16px 0 0; display: flex; align-items: center; gap: 16px; }
+        .brand-logo { height: 48px; width: auto; object-fit: contain; }
+        .brand-texts .brand-title { font-size: 1.25rem; font-weight: 700; color: #fff; letter-spacing: -0.5px; line-height: 1.2; }
+        .brand-texts .brand-sub { font-size: 0.75rem; color: rgba(255,255,255,0.45); margin-top: 3px; text-transform: uppercase; letter-spacing: 1.5px; }
+        .error-box { background: rgba(237,74,36,0.1); border: 1px solid rgba(237,74,36,0.35); border-radius: 8px; padding: 10px 14px; font-size: 0.83rem; color: #f4a090; }
+        .btn-login { background: linear-gradient(135deg, #03AE8E, #027a64) !important; color: #fff !important; font-weight: 700 !important; letter-spacing: 0.5px !important; height: 46px !important; transition: opacity 0.2s !important; }
+        .btn-login:hover { opacity: 0.88 !important; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <v-app theme="dark">
+        <div class="login-bg">
+            <v-card class="login-card" elevation="0">
+                <div class="brand-bar">
+                    <img src="/pictures/logoKodigo.png" alt="Kodigo" class="brand-logo" />
+                    <div class="brand-texts">
+                        <div class="brand-title">Sistema de Soporte</div>
+                        <div class="brand-sub">Acceso interno</div>
+                    </div>
+                </div>
+                <v-card-text style="padding: 28px 32px 32px;">
+                    <v-row no-gutters>
+                        <v-col cols="12" class="mb-4">
+                            <v-text-field v-model="form.username" label="Usuario" prepend-inner-icon="mdi-account-outline"
+                                variant="outlined" density="comfortable" color="#03AE8E" bg-color="#1e1535"
+                                :disabled="cargando" @keyup.enter="login" autocomplete="username" hide-details />
+                        </v-col>
+                        <v-col cols="12" class="mb-4">
+                            <v-text-field v-model="form.password" label="Contraseña" prepend-inner-icon="mdi-lock-outline"
+                                :append-inner-icon="verPass ? 'mdi-eye-off' : 'mdi-eye'" :type="verPass ? 'text' : 'password'"
+                                variant="outlined" density="comfortable" color="#03AE8E" bg-color="#1e1535"
+                                :disabled="cargando" @click:append-inner="verPass = !verPass"
+                                @keyup.enter="login" autocomplete="current-password" hide-details />
+                        </v-col>
+                        <v-col cols="12" class="mb-2" v-if="error">
+                            <div class="error-box">
+                                <v-icon size="15" class="mr-1">mdi-alert-circle-outline</v-icon>{{ error }}
+                            </div>
+                        </v-col>
+                        <v-col cols="12" :class="error ? 'mt-3' : ''">
+                            <v-btn class="btn-login" block :loading="cargando" @click="login">
+                                <v-icon start>mdi-login</v-icon>Ingresar
+                            </v-btn>
+                        </v-col>
+                    </v-row>
+                </v-card-text>
+            </v-card>
+        </div>
+    </v-app>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@3.7.2/dist/vuetify.min.js"></script>
+<script>
+const { createApp, ref } = Vue;
+const { createVuetify } = Vuetify;
+const vuetify = createVuetify();
+
+createApp({
+    setup() {
+        const form     = ref({ username: '', password: '' });
+        const cargando = ref(false);
+        const error    = ref('');
+        const verPass  = ref(false);
+
+        const login = async () => {
+            error.value = '';
+            if (!form.value.username || !form.value.password) {
+                error.value = 'Ingresá tu usuario y contraseña.'; return;
+            }
+            cargando.value = true;
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method:      'POST',
+                    headers:     { 'Content-Type': 'application/json' },
+                    credentials: 'include', // necesario para que la cookie se guarde
+                    body:        JSON.stringify(form.value)
+                });
+                const data = await res.json();
+                if (!res.ok) { error.value = data.error || 'Credenciales inválidas.'; return; }
+
+                // Guardar solo los datos del usuario (sin token) — el token va en cookie httpOnly
+                localStorage.setItem('usuario', JSON.stringify(data.usuario));
+                window.location.href = '/tickets.html';
+            } catch (err) {
+                error.value = 'Error de conexión con el servidor.';
+            } finally {
+                cargando.value = false;
+            }
+        };
+
+        return { form, cargando, error, verPass, login };
+    }
+}).use(vuetify).mount('#app');
+</script>
+</body>
+</html>
