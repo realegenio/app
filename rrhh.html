@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RRHH — Kodigo</title>
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.0.96/css/materialdesignicons.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f5f7 !important; }
+        .v-application { background: #f4f5f7 !important; }
+        .app-bar-custom { background: linear-gradient(135deg, #472268, #120C24) !important; border-bottom: 2px solid #F78F21 !important; }
+        .card-section   { border-radius: 12px !important; border: 1px solid #e0e0e0 !important; }
+        .header-titulo  { color: #472268; font-weight: 700; font-size: 1rem; }
+        .btn-teal    { background: linear-gradient(135deg, #03AE8E, #027a64) !important; color: #fff !important; font-weight: 600 !important; }
+        .btn-naranja { background: linear-gradient(135deg, #F78F21, #ED4A24) !important; color: #fff !important; font-weight: 600 !important; }
+        .emp-card { border-radius: 12px !important; border: 1px solid #e0e0e0 !important; transition: transform 0.2s, box-shadow 0.2s; }
+        .emp-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important; }
+        .emp-foto { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 3px solid #472268; }
+        .emp-foto-placeholder { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, #472268, #03AE8E); display: flex; align-items: center; justify-content: center; }
+        .emp-nombre { font-weight: 700; color: #472268; font-size: 0.95rem; margin-bottom: 6px; }
+        .emp-cargo  { font-size: 0.78rem; color: #555; margin-bottom: 3px; }
+        .emp-depto  { font-size: 0.78rem; color: #888; }
+        .emp-sub    { font-size: 0.78rem; color: #888; margin-top: 4px; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <v-app>
+
+        <!-- APP BAR -->
+        <v-app-bar class="app-bar-custom" flat>
+            <v-app-bar-title>
+                <img src="/pictures/logoKodigo.png" alt="Kodigo" style="height:36px;vertical-align:middle;margin-right:10px;" />
+                <span style="color:#fff;font-weight:600;">Recursos Humanos</span>
+            </v-app-bar-title>
+            <template v-slot:append>
+                <span class="mr-3 text-caption" style="color:rgba(255,255,255,0.7);">{{ usuarioActivo.nombre }}</span>
+                <v-btn icon="mdi-logout" variant="text" color="white" @click="logout"></v-btn>
+            </template>
+        </v-app-bar>
+
+        <v-main>
+            <v-container fluid class="pa-6">
+
+                <!-- FILTROS -->
+                <v-card class="mb-5 card-section" elevation="0">
+                    <v-card-title class="pa-4 pb-2 header-titulo">
+                        <v-icon color="#472268" class="mr-2">mdi-filter-outline</v-icon>Búsqueda de empleados
+                    </v-card-title>
+                    <v-card-text>
+                        <v-row>
+                            <v-col cols="12" md="5">
+                                <v-text-field v-model="filtros.nombre" label="Nombre o apellido"
+                                    prepend-inner-icon="mdi-account-search"
+                                    variant="outlined" density="compact" color="#472268" clearable hide-details />
+                            </v-col>
+                            <v-col cols="12" md="4">
+                                <v-select v-model="filtros.departamento_id" label="Departamento"
+                                    prepend-inner-icon="mdi-office-building"
+                                    :items="toItems(catalogos.departamentos)"
+                                    variant="outlined" density="compact" color="#472268" clearable hide-details />
+                            </v-col>
+                            <v-col cols="12" md="3" class="d-flex align-center gap-2">
+                                <v-btn class="btn-teal mr-2" prepend-icon="mdi-magnify" :loading="cargando" @click="buscar">Buscar</v-btn>
+                                <v-btn variant="outlined" color="#472268" prepend-icon="mdi-refresh" @click="limpiar">Limpiar</v-btn>
+                            </v-col>
+                        </v-row>
+                    </v-card-text>
+                </v-card>
+
+                <!-- RESULTADOS -->
+                <v-card class="card-section" elevation="0">
+                    <v-card-title class="pa-4 pb-2 d-flex align-center">
+                        <span class="header-titulo">
+                            <v-icon color="#472268" class="mr-2">mdi-account-group</v-icon>Empleados
+                        </span>
+                        <v-chip class="ml-2" color="#472268" size="small" variant="tonal" v-if="empleados.length">
+                            {{ empleados.length }} encontrados
+                        </v-chip>
+                        <v-spacer />
+                        <v-btn class="btn-naranja" size="small" prepend-icon="mdi-plus" @click="abrirCrear">Nuevo Empleado</v-btn>
+                    </v-card-title>
+                    <v-card-text>
+
+                        <!-- ESTADO VACÍO -->
+                        <div v-if="!buscado" style="text-align:center; padding:60px 0; color:#999;">
+                            <v-icon size="64" color="#e0e0e0">mdi-account-search-outline</v-icon>
+                            <div style="margin-top:12px; font-size:0.95rem;">Usá los filtros para buscar empleados</div>
+                        </div>
+
+                        <!-- CARDS -->
+                        <v-row v-else>
+                            <v-col v-for="emp in empleados" :key="emp.id" cols="12" sm="6" md="4" lg="3">
+                                <v-card class="emp-card" elevation="0">
+                                    <v-card-text class="pa-4">
+
+                                        <!-- Foto + nombre -->
+                                        <div style="display:flex; gap:16px; margin-bottom:12px;">
+                                            <div v-if="emp.foto">
+                                                <img :src="emp.foto" class="emp-foto" />
+                                            </div>
+                                            <div v-else class="emp-foto-placeholder">
+                                                <v-icon color="white" size="32">mdi-account</v-icon>
+                                            </div>
+                                            <div style="display:flex; flex-direction:column; justify-content:center; gap:5px;">
+                                                <div class="emp-nombre">{{ emp.nombre }} {{ emp.apellido }}</div>
+                                                <div class="emp-cargo">{{ emp.cargo }}</div>
+                                                <div class="emp-depto">{{ emp.departamento }}</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Info adicional -->
+                                        <v-divider class="mb-3" />
+                                        <div class="emp-sub mb-1">
+                                            <v-icon size="13" class="mr-1">mdi-email-outline</v-icon>{{ emp.correo }}
+                                        </div>
+                                        <div class="emp-sub mb-3">
+                                            <v-icon size="13" class="mr-1">mdi-phone-outline</v-icon>{{ emp.telefono || 'Sin teléfono' }}
+                                        </div>
+
+                                        <!-- Estado -->
+                                        <v-chip :color="emp.estado === 'activo' ? '#03AE8E' : '#999'"
+                                            size="x-small" variant="tonal" class="mb-3">
+                                            {{ emp.estado }}
+                                        </v-chip>
+
+                                        <!-- Acciones -->
+                                       <div style="display:flex; gap:4px;">
+                                            <v-tooltip text="Editar" location="top">
+                                                <template v-slot:activator="{ props }">
+                                                    <v-btn v-bind="props" size="x-small" variant="tonal" color="#03AE8E" icon="mdi-pencil" @click="abrirEditar(emp)"></v-btn>
+                                                </template>
+                                            </v-tooltip>
+                                            <v-tooltip text="Foto" location="top">
+                                                <template v-slot:activator="{ props }">
+                                                    <v-btn v-bind="props" size="x-small" variant="tonal" color="#472268" icon="mdi-camera" @click="abrirFoto(emp)"></v-btn>
+                                                </template>
+                                            </v-tooltip>
+                                            <v-tooltip text="Contactos" location="top">
+                                                <template v-slot:activator="{ props }">
+                                                    <v-btn v-bind="props" size="x-small" variant="tonal" color="#406494" icon="mdi-contacts" @click="abrirContactos(emp)"></v-btn>
+                                                </template>
+                                            </v-tooltip>
+                                            <v-tooltip :text="emp.estado === 'activo' ? 'Desactivar' : 'Reactivar'" location="top">
+                                                <template v-slot:activator="{ props }">
+                                                    <v-btn v-bind="props" size="x-small" variant="tonal"
+                                                        :color="emp.estado === 'activo' ? '#ED4A24' : '#03AE8E'"
+                                                        :icon="emp.estado === 'activo' ? 'mdi-account-off' : 'mdi-account-check'"
+                                                        @click="emp.estado === 'activo' ? desactivar(emp) : reactivar(emp)">
+                                                    </v-btn>
+                                                </template>
+                                            </v-tooltip>
+                                        </div>
+
+                                    </v-card-text>
+                                </v-card>
+                            </v-col>
+                        </v-row>
+
+                    </v-card-text>
+                </v-card>
+
+            </v-container>
+        </v-main>
+
+        <!-- DIALOG NUEVO / EDITAR EMPLEADO -->
+        <v-dialog v-model="dialogForm" max-width="700" persistent>
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#472268,#120C24);color:#fff;">
+                    <v-icon class="mr-2">{{ modoEditar ? 'mdi-pencil' : 'mdi-plus-circle' }}</v-icon>
+                    {{ modoEditar ? 'Editar Empleado' : 'Nuevo Empleado' }}
+                </v-card-title>
+                <v-card-text class="pa-5">
+                    <v-row>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="form.nombre" label="Nombre *" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="form.apellido" label="Apellido *" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="form.dui" label="DUI" variant="outlined" density="compact" color="#472268" hide-details placeholder="00000000-0" />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="form.fecha_nacimiento" label="Fecha de nacimiento" type="date" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="form.telefono" label="Teléfono" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="form.correo" label="Correo *" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-select v-model="form.cargo_id" label="Cargo *" :items="toItems(catalogos.cargos)" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-select v-model="form.departamento_id" label="Departamento *" :items="toItems(catalogos.departamentos)" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-select v-model="form.tipo_contrato_id" label="Tipo de contrato *" :items="toItems(catalogos.tipos_contrato)" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-select v-model="form.afp_id" label="AFP" :items="toItems(catalogos.afps)" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-select v-model="form.pais_id" label="País" :items="toItems(catalogos.paises)" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="form.fecha_ingreso" label="Fecha de ingreso *" type="date" variant="outlined" density="compact" color="#472268" hide-details />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field v-model="form.salario_actual" label="Salario *" type="number" variant="outlined" density="compact" color="#472268" hide-details prefix="$" />
+                        </v-col>
+                    </v-row>
+                    <v-alert v-if="errorForm" type="error" density="compact" class="mt-3">{{ errorForm }}</v-alert>
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" color="#472268" @click="dialogForm = false">Cancelar</v-btn>
+                    <v-btn class="btn-teal ml-2" :loading="guardando" @click="guardar">
+                        {{ modoEditar ? 'Actualizar' : 'Crear' }}
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <!-- DIALOG SUBIR FOTO -->
+        
+        <v-dialog v-model="dialogFoto" max-width="400" persistent>
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#472268,#120C24);color:#fff;">
+                    <v-icon class="mr-2">mdi-camera</v-icon>Subir Foto
+                </v-card-title>
+                <v-card-text class="pa-5">
+                    <div
+                        @dragover.prevent
+                        @drop.prevent="archivoFoto = $event.dataTransfer.files[0]"
+                        @click="$refs.inputFoto.click()"
+                        :style="{
+                            border: '2px dashed ' + (archivoFoto ? '#03AE8E' : '#472268'),
+                            borderRadius: '12px',
+                            padding: '40px 20px',
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            background: archivoFoto ? 'rgba(3,174,142,0.05)' : 'rgba(71,34,104,0.03)',
+                            transition: 'all 0.2s'
+                        }">
+                        <v-icon size="48" :color="archivoFoto ? '#03AE8E' : '#472268'">
+                            {{ archivoFoto ? 'mdi-check-circle' : 'mdi-cloud-upload-outline' }}
+                        </v-icon>
+                        <div style="margin-top:12px; font-size:0.9rem; color:#555;">
+                            {{ archivoFoto ? archivoFoto.name : 'Arrastrá una imagen o hacé click para seleccionar' }}
+                        </div>
+                        <div style="font-size:0.75rem; color:#999; margin-top:4px;">JPG, PNG o WEBP — máx 2MB</div>
+                    </div>
+                    <input ref="inputFoto" type="file" accept="image/jpeg,image/png,image/webp"
+                        style="display:none" @change="archivoFoto = $event.target.files[0]" />
+                    <v-alert v-if="errorFoto" type="error" density="compact" class="mt-3">{{ errorFoto }}</v-alert>
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" color="#472268" @click="dialogFoto = false">Cancelar</v-btn>
+                    <v-btn class="btn-teal ml-2" :loading="subiendoFoto" @click="subirFoto">Subir</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-snackbar v-model="snack.show" :color="snack.color" timeout="3000">{{ snack.texto }}</v-snackbar>
+
+    
+    
+    <!-- DIALOG CONTACTOS -->
+        <v-dialog v-model="dialogContactos" max-width="500">
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#472268,#120C24);color:#fff;">
+                    <v-icon class="mr-2">mdi-contacts</v-icon>
+                    Contactos — {{ empSeleccionado?.nombre }} {{ empSeleccionado?.apellido }}
+                </v-card-title>
+                <v-card-text class="pa-4">
+
+                    <!-- Lista de contactos -->
+                    <div v-if="contactos.length === 0" style="text-align:center; padding:20px; color:#999;">
+                        <v-icon size="40" color="#e0e0e0">mdi-contacts-outline</v-icon>
+                        <div style="margin-top:8px; font-size:0.85rem;">Sin contactos registrados</div>
+                    </div>
+                    <div v-for="c in contactos" :key="c.id" style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #f0f0f0;">
+                        <div>
+                            <div style="font-weight:600; color:#472268; font-size:0.9rem;">{{ c.nombre }}</div>
+                            <div style="font-size:0.78rem; color:#888;">{{ c.parentesco }} · {{ c.telefono }}</div>
+                        </div>
+                        <v-btn size="x-small" variant="tonal" color="#ED4A24" icon="mdi-delete" @click="eliminarContacto(c)"></v-btn>
+                    </div>
+
+                    <!-- Formulario agregar -->
+                    <div style="margin-top:16px; padding-top:16px; border-top:2px dashed #e0e0e0;">
+                        <div style="font-weight:600; color:#472268; font-size:0.85rem; margin-bottom:12px;">Agregar contacto</div>
+                        <v-row dense>
+                            <v-col cols="12" md="6">
+                                <v-text-field v-model="formContacto.nombre" label="Nombre *" variant="outlined" density="compact" color="#472268" hide-details />
+                            </v-col>
+                            <v-col cols="12" md="6">
+                                <v-text-field v-model="formContacto.telefono" label="Teléfono *" variant="outlined" density="compact" color="#472268" hide-details />
+                            </v-col>
+                            <v-col cols="12">
+                                <v-text-field v-model="formContacto.parentesco" label="Parentesco" variant="outlined" density="compact" color="#472268" hide-details placeholder="Ej: Mamá, Esposo, Hermana" />
+                            </v-col>
+                        </v-row>
+                        <v-alert v-if="errorContacto" type="error" density="compact" class="mt-2">{{ errorContacto }}</v-alert>
+                        <v-btn class="btn-teal mt-3" size="small" prepend-icon="mdi-plus" :loading="guardandoContacto" @click="agregarContacto">Agregar</v-btn>
+                    </div>
+
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" color="#472268" @click="dialogContactos = false">Cerrar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+
+    
+    </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.0/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.js"></script>
+<script>
+        const { createApp, ref, onMounted } = Vue;
+        const { createVuetify } = Vuetify;
+        const vuetify = createVuetify();
+
+        const usuarioActivo = JSON.parse(localStorage.getItem('usuario') || '{}');
+        if (!usuarioActivo.id) window.location.href = '/index.html';
+
+        const API     = '/api/rrhh';
+        const HEADERS = { 'Content-Type': 'application/json' };
+
+        createApp({
+            setup() {
+                const filtros      = ref({ nombre: '', departamento_id: null });
+                const buscado      = ref(false);
+                const cargando     = ref(false);
+                const dialogForm   = ref(false);
+                const dialogFoto   = ref(false);
+                const modoEditar   = ref(false);
+                const guardando    = ref(false);
+                const subiendoFoto = ref(false);
+                const errorForm    = ref('');
+                const errorFoto    = ref('');
+                const archivoFoto  = ref(null);
+                const empleados    = ref([]);
+                const snack        = ref({ show: false, color: 'green', texto: '' });
+                const catalogos    = ref({ cargos: [], departamentos: [], afps: [], tipos_contrato: [], paises: [] });
+
+                const formVacio = () => ({
+                    nombre: '', apellido: '', dui: '', fecha_nacimiento: '',
+                    telefono: '', correo: '', cargo_id: null, departamento_id: null,
+                    tipo_contrato_id: null, afp_id: null, pais_id: null,
+                    fecha_ingreso: '', salario_actual: ''
+                });
+                const form            = ref(formVacio());
+                const empSeleccionado = ref(null);
+
+                const mostrarSnack = (texto, color = 'green') => snack.value = { show: true, color, texto };
+                const toItems      = (lista) => lista.map(i => ({ title: i.descripcion, value: i.id }));
+
+                // ── CATÁLOGOS ───────────────────────────────────────
+                onMounted(async () => {
+                    try {
+                        const res = await fetch(`${API}/catalogos`, { credentials: 'include' });
+                        if (res.status === 401) { logout(); return; }
+                        catalogos.value = await res.json();
+                    } catch (e) {
+                        console.error('Error cargando catálogos', e);
+                    }
+                });
+
+                // ── BUSCAR ──────────────────────────────────────────
+                const buscar = async () => {
+                    cargando.value = true;
+                    buscado.value  = true;
+                    try {
+                        const params = new URLSearchParams();
+                        if (filtros.value.nombre)          params.append('nombre', filtros.value.nombre);
+                        if (filtros.value.departamento_id) params.append('departamento_id', filtros.value.departamento_id);
+                        const res  = await fetch(`${API}/empleados?${params}`, { credentials: 'include' });
+                        if (res.status === 401) { logout(); return; }
+                        const data = await res.json();
+                        empleados.value = data.data;
+                    } catch (e) {
+                        mostrarSnack('Error al buscar empleados', 'red');
+                    } finally {
+                        cargando.value = false;
+                    }
+                };
+
+                const limpiar = () => {
+                    filtros.value   = { nombre: '', departamento_id: null };
+                    buscado.value   = false;
+                    empleados.value = [];
+                };
+
+                // ── FORMULARIO ──────────────────────────────────────
+                const abrirCrear  = () => { modoEditar.value = false; form.value = formVacio(); errorForm.value = ''; dialogForm.value = true; };
+                const abrirEditar = (emp) => {
+                    modoEditar.value      = true;
+                    empSeleccionado.value = emp;
+                    form.value = {
+                        nombre:           emp.nombre,
+                        apellido:         emp.apellido,
+                        dui:              emp.dui,
+                        fecha_nacimiento: emp.fecha_nacimiento ? emp.fecha_nacimiento.slice(0,10) : '',
+                        telefono:         emp.telefono,
+                        correo:           emp.correo,
+                        cargo_id:         emp.cargo_id,
+                        departamento_id:  emp.departamento_id,
+                        tipo_contrato_id: emp.tipo_contrato_id,
+                        afp_id:           emp.afp_id,
+                        pais_id:          emp.pais_id,
+                        fecha_ingreso:    emp.fecha_ingreso ? emp.fecha_ingreso.slice(0,10) : '',
+                        salario_actual:   emp.salario_actual
+                    };
+                    errorForm.value  = '';
+                    dialogForm.value = true;
+                };
+
+                const guardar = async () => {
+                    errorForm.value = '';
+                    const { nombre, apellido, correo, cargo_id, departamento_id, tipo_contrato_id, fecha_ingreso, salario_actual } = form.value;
+                    if (!nombre || !apellido || !correo || !cargo_id || !departamento_id || !tipo_contrato_id || !fecha_ingreso || !salario_actual) {
+                        errorForm.value = 'Completá los campos requeridos (*)'; return;
+                    }
+                    guardando.value = true;
+                    try {
+                        const url    = modoEditar.value ? `${API}/empleados/${empSeleccionado.value.id}` : `${API}/empleados`;
+                        const method = modoEditar.value ? 'PUT' : 'POST';
+                        const res    = await fetch(url, { method, headers: HEADERS, credentials: 'include', body: JSON.stringify(form.value) });
+                        if (res.status === 401) { logout(); return; }
+                        const data = await res.json();
+                        if (!res.ok) { errorForm.value = data.error || 'Error al guardar'; return; }
+                        dialogForm.value = false;
+                        mostrarSnack(modoEditar.value ? 'Empleado actualizado ✓' : 'Empleado creado ✓');
+                        await buscar();
+                    } catch (e) {
+                        errorForm.value = 'Error de conexión';
+                    } finally {
+                        guardando.value = false;
+                    }
+                };
+
+                // ── FOTO ────────────────────────────────────────────
+                const abrirFoto = (emp) => { empSeleccionado.value = emp; archivoFoto.value = null; errorFoto.value = ''; dialogFoto.value = true; };
+                const subirFoto = async () => {
+                    if (!archivoFoto.value) { errorFoto.value = 'Seleccioná una imagen'; return; }
+                    subiendoFoto.value = true;
+                    try {
+                        const fd = new FormData();
+                        fd.append('foto', archivoFoto.value);
+                        const res = await fetch(`${API}/empleados/${empSeleccionado.value.id}/foto`, {
+                            method: 'POST', credentials: 'include', body: fd
+                        });
+                        if (res.status === 401) { logout(); return; }
+                        if (!res.ok) { errorFoto.value = 'Error al subir la foto'; return; }
+                        dialogFoto.value = false;
+                        mostrarSnack('Foto actualizada ✓');
+                        await buscar();
+                    } catch (e) {
+                        errorFoto.value = 'Error de conexión';
+                    } finally {
+                        subiendoFoto.value = false;
+                    }
+                };
+
+                // ── DESACTIVAR ──────────────────────────────────────
+                const desactivar = async (emp) => {
+                    if (!confirm(`¿Desactivar a ${emp.nombre} ${emp.apellido}?`)) return;
+                    try {
+                        const res = await fetch(`${API}/empleados/${emp.id}/desactivar`, { method: 'PATCH', credentials: 'include' });
+                        if (res.status === 401) { logout(); return; }
+                        mostrarSnack(`${emp.nombre} desactivado`, '#ED4A24');
+                        await buscar();
+                    } catch (e) {
+                        mostrarSnack('Error al desactivar', 'red');
+                    }
+                };
+
+                // ── REACTIVAR ───────────────────────────────────────
+
+                const reactivar = async (emp) => {
+                    if (!confirm(`¿Reactivar a ${emp.nombre} ${emp.apellido}?`)) return;
+                    try {
+                        const res = await fetch(`${API}/empleados/${emp.id}/reactivar`, { method: 'PATCH', credentials: 'include' });
+                        if (res.status === 401) { logout(); return; }
+                        mostrarSnack(`${emp.nombre} reactivado ✓`);
+                        await buscar();
+                    } catch (e) {
+                        mostrarSnack('Error al reactivar', 'red');
+                    }
+                };
+
+                // ── LOGOUT ──────────────────────────────────────────
+                const logout = async () => {
+                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                    localStorage.removeItem('usuario');
+                    window.location.href = '/index.html';
+                };
+
+
+
+
+
+                const dialogContactos   = ref(false);
+                const contactos         = ref([]);
+                const guardandoContacto = ref(false);
+                const errorContacto     = ref('');
+                const formContacto      = ref({ nombre: '', telefono: '', parentesco: '' });
+
+                const abrirContactos = async (emp) => {
+                    empSeleccionado.value = emp;
+                    contactos.value       = [];
+                    errorContacto.value   = '';
+                    formContacto.value    = { nombre: '', telefono: '', parentesco: '' };
+                    dialogContactos.value = true;
+                    try {
+                        const res  = await fetch(`${API}/empleados/${emp.id}/contactos`, { credentials: 'include' });
+                        const data = await res.json();
+                        contactos.value = data.data;
+                    } catch (e) {
+                        console.error('Error cargando contactos', e);
+                    }
+                };
+
+                const agregarContacto = async () => {
+                    errorContacto.value = '';
+                    if (!formContacto.value.nombre || !formContacto.value.telefono) {
+                        errorContacto.value = 'Nombre y teléfono son requeridos'; return;
+                    }
+                    guardandoContacto.value = true;
+                    try {
+                        const res = await fetch(`${API}/empleados/${empSeleccionado.value.id}/contactos`, {
+                            method: 'POST', headers: HEADERS, credentials: 'include',
+                            body: JSON.stringify(formContacto.value)
+                        });
+                        if (!res.ok) { errorContacto.value = 'Error al agregar'; return; }
+                        formContacto.value = { nombre: '', telefono: '', parentesco: '' };
+                        const r = await fetch(`${API}/empleados/${empSeleccionado.value.id}/contactos`, { credentials: 'include' });
+                        contactos.value = (await r.json()).data;
+                        mostrarSnack('Contacto agregado ✓');
+                    } catch (e) {
+                        errorContacto.value = 'Error de conexión';
+                    } finally {
+                        guardandoContacto.value = false;
+                    }
+                };
+
+                const eliminarContacto = async (c) => {
+                    if (!confirm(`¿Eliminar a ${c.nombre}?`)) return;
+                    try {
+                        await fetch(`${API}/contactos/${c.id}`, { method: 'DELETE', credentials: 'include' });
+                        contactos.value = contactos.value.filter(x => x.id !== c.id);
+                        mostrarSnack('Contacto eliminado', '#ED4A24');
+                    } catch (e) {
+                        mostrarSnack('Error al eliminar', 'red');
+                    }
+                };
+
+
+
+
+
+
+
+
+                return {
+                    filtros, buscado, cargando, empleados, catalogos, toItems, snack,
+                    dialogForm, dialogFoto, modoEditar, guardando, subiendoFoto,
+                    errorForm, errorFoto, archivoFoto, form,
+                    buscar, limpiar, abrirCrear, abrirEditar, guardar,
+                    abrirFoto, subirFoto, desactivar, reactivar, logout, usuarioActivo,
+                    dialogContactos, contactos, formContacto, errorContacto, guardandoContacto,
+                    abrirContactos, agregarContacto, eliminarContacto,empSeleccionado
+                };
+            }
+        }).use(vuetify).mount('#app');
+</script>
+</body>
+</html>
