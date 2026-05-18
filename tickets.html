@@ -16,22 +16,12 @@
         .header-titulo { color: #472268; font-weight: 700; font-size: 1rem; }
     </style>
 </head>
-<body>
+<body class="with-nav">
 <div id="app">
     <v-app>
-        <v-app-bar class="app-bar-custom" flat>
-            <v-app-bar-title>
-                <img src="/pictures/logoKodigo.png" alt="Kodigo" style="height:36px;vertical-align:middle;margin-right:10px;" />
-                <span style="color:#fff;font-weight:600;">Sistema de Tickets</span>
-            </v-app-bar-title>
-            <template v-slot:append>
-                <a href="/dashboard.html" style="color:white;text-decoration:none;margin-right:16px;font-size:0.85rem;opacity:0.85;">📊 Dashboard</a>
-                <span class="mr-3 text-caption" style="color:rgba(255,255,255,0.7);">{{ usuarioActivo.nombre }}</span>
-                <v-btn icon="mdi-logout" variant="text" color="white" @click="logout"></v-btn>
-            </template>
-        </v-app-bar>
+        <kodigo-nav page="tickets"></kodigo-nav>
 
-        <v-main>
+        <v-main style="margin-left: 220px;">
             <v-container fluid class="pa-6">
                 <v-card class="mb-5 card-section" elevation="0">
                     <v-card-title class="pa-4 pb-2 header-titulo">
@@ -150,146 +140,150 @@
 
 <script src="https://cdn.jsdelivr.net/npm/vue@3.4.0/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.js"></script>
+
+<script src="/nav.js"></script>
 <script>
-const { createApp, ref } = Vue;
-const { createVuetify } = Vuetify;
-const vuetify = createVuetify();
+        const { createApp, ref } = Vue;
+        const { createVuetify } = Vuetify;
+        const vuetify = createVuetify();
 
-const usuarioActivo = JSON.parse(localStorage.getItem('usuario') || '{}');
-if (!usuarioActivo.id) window.location.href = '/index.html';
+        const usuarioActivo = JSON.parse(localStorage.getItem('usuario') || '{}');
+        if (!usuarioActivo.id) window.location.href = '/index.html';
 
-const API     = '/api/soporte';
-const HEADERS = { 'Content-Type': 'application/json' };
+        const API     = '/api/soporte';
+        const HEADERS = { 'Content-Type': 'application/json' };
 
-createApp({
-    setup() {
-        const filtros        = ref({ numero_ticket: '', usuario_solicitante: '', titulo: '' });
-        const tickets        = ref([]);
-        const total          = ref(0);
-        const cargando       = ref(false);
-        const snack          = ref({ show: false, color: 'green', texto: '' });
-        const dialogForm     = ref(false);
-        const dialogEliminar = ref(false);
-        const modoEditar     = ref(false);
-        const guardando      = ref(false);
-        const errorForm      = ref('');
-        const ticketSeleccionado = ref(null);
+        createApp({
+            setup() {
+                const filtros        = ref({ numero_ticket: '', usuario_solicitante: '', titulo: '' });
+                const tickets        = ref([]);
+                const total          = ref(0);
+                const cargando       = ref(false);
+                const snack          = ref({ show: false, color: 'green', texto: '' });
+                const dialogForm     = ref(false);
+                const dialogEliminar = ref(false);
+                const modoEditar     = ref(false);
+                const guardando      = ref(false);
+                const errorForm      = ref('');
+                const ticketSeleccionado = ref(null);
 
-        const formVacio = () => ({
-            usuario_solicitante: usuarioActivo.username || '',
-            titulo: '', descripcion: '', prioridad: 'Media', estado: 'Abierto'
-        });
-        const form = ref(formVacio());
-
-        const headers = [
-            { title: 'Ticket',      key: 'numero_ticket' },
-            { title: 'Solicitante', key: 'usuario_solicitante' },
-            { title: 'Título',      key: 'titulo' },
-            { title: 'Prioridad',   key: 'prioridad' },
-            { title: 'Estado',      key: 'estado' },
-            { title: 'Fecha',       key: 'fecha_creacion' },
-            { title: 'Acciones',    key: 'acciones', sortable: false },
-        ];
-
-        const mostrarSnack   = (texto, color = 'green') => snack.value = { show: true, color, texto };
-        const formatFecha    = (f) => f ? new Date(f).toLocaleString('es-SV') : '-';
-        const colorEstado    = (e) => ({ 'Abierto': '#406494', 'En Progreso': '#F78F21', 'En Espera': '#472268', 'Cerrado': '#03AE8E' }[e] || 'grey');
-        const colorPrioridad = (p) => ({ 'critica': '#ED4A24', 'Alta': '#F78F21', 'Media': '#406494', 'Baja': '#03AE8E' }[p] || 'grey');
-
-        const buscar = async () => {
-            cargando.value = true;
-            try {
-                const params = new URLSearchParams();
-                if (filtros.value.numero_ticket)       params.append('numero_ticket', filtros.value.numero_ticket);
-                if (filtros.value.usuario_solicitante) params.append('usuario_solicitante', filtros.value.usuario_solicitante);
-                if (filtros.value.titulo)              params.append('titulo', filtros.value.titulo);
-
-                const res = await fetch(`${API}?${params}`, { credentials: 'include' });
-                if (res.status === 401) { logout(); return; }
-                const data = await res.json();
-                const vistos = new Set();
-                tickets.value = data.data.filter(t => {
-                    if (vistos.has(t.numero_ticket)) return false;
-                    vistos.add(t.numero_ticket); return true;
+                const formVacio = () => ({
+                    usuario_solicitante: usuarioActivo.username || '',
+                    titulo: '', descripcion: '', prioridad: 'Media', estado: 'Abierto'
                 });
-                total.value = tickets.value.length;
-            } catch (e) {
-                mostrarSnack('Error al consultar la API', 'red');
-            } finally {
-                cargando.value = false;
+                const form = ref(formVacio());
+
+                const headers = [
+                    { title: 'Ticket',      key: 'numero_ticket' },
+                    { title: 'Solicitante', key: 'usuario_solicitante' },
+                    { title: 'Título',      key: 'titulo' },
+                    { title: 'Prioridad',   key: 'prioridad' },
+                    { title: 'Estado',      key: 'estado' },
+                    { title: 'Fecha',       key: 'fecha_creacion' },
+                    { title: 'Acciones',    key: 'acciones', sortable: false },
+                ];
+
+                const mostrarSnack   = (texto, color = 'green') => snack.value = { show: true, color, texto };
+                const formatFecha    = (f) => f ? new Date(f).toLocaleString('es-SV') : '-';
+                const colorEstado    = (e) => ({ 'Abierto': '#406494', 'En Progreso': '#F78F21', 'En Espera': '#472268', 'Cerrado': '#03AE8E' }[e] || 'grey');
+                const colorPrioridad = (p) => ({ 'critica': '#ED4A24', 'Alta': '#F78F21', 'Media': '#406494', 'Baja': '#03AE8E' }[p] || 'grey');
+
+                const buscar = async () => {
+                    cargando.value = true;
+                    try {
+                        const params = new URLSearchParams();
+                        if (filtros.value.numero_ticket)       params.append('numero_ticket', filtros.value.numero_ticket);
+                        if (filtros.value.usuario_solicitante) params.append('usuario_solicitante', filtros.value.usuario_solicitante);
+                        if (filtros.value.titulo)              params.append('titulo', filtros.value.titulo);
+
+                        const res = await fetch(`${API}?${params}`, { credentials: 'include' });
+                        if (res.status === 401) { logout(); return; }
+                        const data = await res.json();
+                        const vistos = new Set();
+                        tickets.value = data.data.filter(t => {
+                            if (vistos.has(t.numero_ticket)) return false;
+                            vistos.add(t.numero_ticket); return true;
+                        });
+                        total.value = tickets.value.length;
+                    } catch (e) {
+                        mostrarSnack('Error al consultar la API', 'red');
+                    } finally {
+                        cargando.value = false;
+                    }
+                };
+
+                const limpiar = () => { filtros.value = { numero_ticket: '', usuario_solicitante: '', titulo: '' }; tickets.value = []; total.value = 0; };
+
+                const abrirCrear  = () => { modoEditar.value = false; form.value = formVacio(); errorForm.value = ''; dialogForm.value = true; };
+                const abrirEditar = (item) => {
+                    modoEditar.value = true; ticketSeleccionado.value = item;
+                    form.value = { usuario_solicitante: item.usuario_solicitante, titulo: item.titulo, descripcion: item.descripcion, prioridad: item.prioridad, estado: item.estado };
+                    errorForm.value = ''; dialogForm.value = true;
+                };
+
+                const guardar = async () => {
+                    errorForm.value = '';
+                    if (!form.value.usuario_solicitante || !form.value.titulo || !form.value.descripcion) {
+                        errorForm.value = 'Completá los campos requeridos (*)'; return;
+                    }
+                    guardando.value = true;
+                    try {
+                        let res;
+                        if (modoEditar.value) {
+                            res = await fetch(`${API}/${ticketSeleccionado.value.id}`, { method: 'PUT', headers: HEADERS, credentials: 'include', body: JSON.stringify(form.value) });
+                        } else {
+                            res = await fetch(API, { method: 'POST', headers: HEADERS, credentials: 'include', body: JSON.stringify(form.value) });
+                        }
+                        if (res.status === 401) { logout(); return; }
+                        const data = await res.json();
+                        if (!res.ok) { errorForm.value = data.error || 'Error al guardar'; return; }
+                        dialogForm.value = false;
+                        mostrarSnack(modoEditar.value ? 'Ticket actualizado ✓' : 'Ticket creado ✓');
+                        await buscar();
+                    } catch (e) {
+                        errorForm.value = 'Error de conexión';
+                    } finally {
+                        guardando.value = false;
+                    }
+                };
+
+                const abrirEliminar = (item) => { ticketSeleccionado.value = item; dialogEliminar.value = true; };
+                const eliminar = async () => {
+                    guardando.value = true;
+                    try {
+                        const res = await fetch(`${API}/${ticketSeleccionado.value.id}`, { method: 'DELETE', credentials: 'include' });
+                        if (res.status === 401) { logout(); return; }
+                        if (!res.ok) { mostrarSnack('Error al eliminar', 'red'); return; }
+                        dialogEliminar.value = false;
+                        mostrarSnack('Ticket eliminado ✓', '#ED4A24');
+                        await buscar();
+                    } catch (e) {
+                        mostrarSnack('Error de conexión', 'red');
+                    } finally {
+                        guardando.value = false;
+                    }
+                };
+
+                const logout = async () => {
+                    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+                    localStorage.removeItem('usuario');
+                    window.location.href = '/index.html';
+                };
+
+                buscar();
+
+                return {
+                    filtros, tickets, total, cargando, headers, snack, form,
+                    dialogForm, dialogEliminar, modoEditar, guardando, errorForm,
+                    ticketSeleccionado, usuarioActivo,
+                    buscar, limpiar, guardar, eliminar, logout,
+                    abrirCrear, abrirEditar, abrirEliminar,
+                    colorEstado, colorPrioridad, formatFecha
+                };
             }
-        };
-
-        const limpiar = () => { filtros.value = { numero_ticket: '', usuario_solicitante: '', titulo: '' }; tickets.value = []; total.value = 0; };
-
-        const abrirCrear  = () => { modoEditar.value = false; form.value = formVacio(); errorForm.value = ''; dialogForm.value = true; };
-        const abrirEditar = (item) => {
-            modoEditar.value = true; ticketSeleccionado.value = item;
-            form.value = { usuario_solicitante: item.usuario_solicitante, titulo: item.titulo, descripcion: item.descripcion, prioridad: item.prioridad, estado: item.estado };
-            errorForm.value = ''; dialogForm.value = true;
-        };
-
-        const guardar = async () => {
-            errorForm.value = '';
-            if (!form.value.usuario_solicitante || !form.value.titulo || !form.value.descripcion) {
-                errorForm.value = 'Completá los campos requeridos (*)'; return;
-            }
-            guardando.value = true;
-            try {
-                let res;
-                if (modoEditar.value) {
-                    res = await fetch(`${API}/${ticketSeleccionado.value.id}`, { method: 'PUT', headers: HEADERS, credentials: 'include', body: JSON.stringify(form.value) });
-                } else {
-                    res = await fetch(API, { method: 'POST', headers: HEADERS, credentials: 'include', body: JSON.stringify(form.value) });
-                }
-                if (res.status === 401) { logout(); return; }
-                const data = await res.json();
-                if (!res.ok) { errorForm.value = data.error || 'Error al guardar'; return; }
-                dialogForm.value = false;
-                mostrarSnack(modoEditar.value ? 'Ticket actualizado ✓' : 'Ticket creado ✓');
-                await buscar();
-            } catch (e) {
-                errorForm.value = 'Error de conexión';
-            } finally {
-                guardando.value = false;
-            }
-        };
-
-        const abrirEliminar = (item) => { ticketSeleccionado.value = item; dialogEliminar.value = true; };
-        const eliminar = async () => {
-            guardando.value = true;
-            try {
-                const res = await fetch(`${API}/${ticketSeleccionado.value.id}`, { method: 'DELETE', credentials: 'include' });
-                if (res.status === 401) { logout(); return; }
-                if (!res.ok) { mostrarSnack('Error al eliminar', 'red'); return; }
-                dialogEliminar.value = false;
-                mostrarSnack('Ticket eliminado ✓', '#ED4A24');
-                await buscar();
-            } catch (e) {
-                mostrarSnack('Error de conexión', 'red');
-            } finally {
-                guardando.value = false;
-            }
-        };
-
-        const logout = async () => {
-            await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-            localStorage.removeItem('usuario');
-            window.location.href = '/index.html';
-        };
-
-        buscar();
-
-        return {
-            filtros, tickets, total, cargando, headers, snack, form,
-            dialogForm, dialogEliminar, modoEditar, guardando, errorForm,
-            ticketSeleccionado, usuarioActivo,
-            buscar, limpiar, guardar, eliminar, logout,
-            abrirCrear, abrirEditar, abrirEliminar,
-            colorEstado, colorPrioridad, formatFecha
-        };
-    }
-}).use(vuetify).mount('#app');
+            }).component('kodigo-nav', window.KodigoNav).use(vuetify).mount('#app');
 </script>
+
+    
 </body>
 </html>

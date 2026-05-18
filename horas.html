@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Horas — Kodigo</title>
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.0.96/css/materialdesignicons.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f5f7 !important; }
+        .v-application { background: #f4f5f7 !important; }
+        .btn-teal    { background: linear-gradient(135deg, #03AE8E, #027a64) !important; color: #fff !important; font-weight: 600 !important; }
+        .btn-naranja { background: linear-gradient(135deg, #F78F21, #ED4A24) !important; color: #fff !important; font-weight: 600 !important; }
+        .btn-purple  { background: linear-gradient(135deg, #472268, #120C24) !important; color: #fff !important; font-weight: 600 !important; }
+        .card-section  { border-radius: 12px !important; border: 1px solid #e0e0e0 !important; }
+        .header-titulo { color: #472268; font-weight: 700; font-size: 1rem; }
+        .timer-card {
+            background: linear-gradient(135deg, #120C24, #472268);
+            border-radius: 16px; border: 2px solid #03AE8E;
+            padding: 24px; text-align: center;
+            box-shadow: 0 0 32px rgba(3,174,142,0.25);
+        }
+        .timer-display {
+            font-size: 3.5rem; font-weight: 900; color: #03AE8E;
+            font-variant-numeric: tabular-nums; letter-spacing: 2px;
+            text-shadow: 0 0 20px rgba(3,174,142,0.5);
+            animation: pulso 2s ease-in-out infinite;
+        }
+        @keyframes pulso { 0%,100%{opacity:1} 50%{opacity:0.75} }
+        .timer-label   { color: rgba(255,255,255,0.6); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; }
+        .timer-cohorte { color: #F78F21; font-size: 0.9rem; font-weight: 600; margin-top: 8px; }
+        .inicio-card {
+            background: #fff; border-radius: 16px; border: 2px dashed #472268;
+            padding: 32px 24px; text-align: center; cursor: pointer; transition: all 0.2s;
+        }
+        .inicio-card:hover { border-color: #03AE8E; background: rgba(3,174,142,0.03); }
+        .estado-borrador   { background: rgba(158,158,158,0.15) !important; color: #757575 !important; }
+        .estado-enviado    { background: rgba(64,100,148,0.15)  !important; color: #406494 !important; }
+        .estado-aprobado   { background: rgba(247,143,33,0.15)  !important; color: #F78F21 !important; }
+        .estado-rechazado  { background: rgba(237,74,36,0.15)   !important; color: #ED4A24 !important; }
+        .estado-autorizado { background: rgba(3,174,142,0.15)   !important; color: #03AE8E !important; }
+        .estado-pagado     { background: rgba(71,34,104,0.15)   !important; color: #472268 !important; }
+        .horas-total { font-size: 2.8rem; font-weight: 900; color: #472268; line-height: 1; }
+        .horas-label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 1.5px; }
+        .rol-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 12px; border-radius: 20px;
+            font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body class="with-nav">
+    
+<div id="app">
+    
+    <v-app>
+        
+
+        <kodigo-nav page="horas"></kodigo-nav>
+        <v-main style="margin-left:220px;">
+            <v-container fluid class="pa-6">
+                <div>
+
+                    <!-- CABECERA -->
+                    <v-row align="center" class="mb-5">
+                        <v-col cols="12" md="5">
+                            <div style="font-size:1.4rem;font-weight:800;color:#472268;">Control de Horas</div>
+                            <div style="font-size:0.8rem;color:#888;">{{ periodoActual ? periodoActual.nombre : 'Seleccioná un periodo' }}</div>
+                        </v-col>
+                        <v-col cols="12" md="7" class="d-flex align-center justify-end gap-2 flex-wrap">
+                            <div class="rol-badge" :style="estiloRolBadge">
+                                <v-icon size="14">{{ iconoRol }}</v-icon>
+                                {{ rolLabel }}
+                            </div>
+                            <v-select
+                                v-model="periodoId"
+                                :items="periodos"
+                                item-title="nombre"
+                                item-value="id"
+                                label="Periodo"
+                                variant="outlined"
+                                density="compact"
+                                color="#472268"
+                                hide-details
+                                style="max-width:180px;"
+                                @update:model-value="cargarVista"
+                            />
+                            <v-btn class="btn-purple" prepend-icon="mdi-plus" size="small" @click="dialogPeriodo = true">
+                                Nuevo Periodo
+                            </v-btn>
+                        </v-col>
+                    </v-row>
+
+                    <!-- CARGANDO -->
+                    <div v-if="cargando" class="d-flex justify-center align-center" style="height:40vh;">
+                        <v-progress-circular indeterminate color="#472268" size="48"></v-progress-circular>
+                    </div>
+
+                    <!-- SIN ACCESO -->
+                    <div v-else-if="!rolHoras">
+                        <v-alert type="error" variant="tonal">No tenés acceso al módulo de horas.</v-alert>
+                    </div>
+
+                    <!-- VISTA COACH -->
+                    <div v-else-if="rolHoras === 'coach'">
+                        <v-alert v-if="!periodoId" type="info" variant="tonal" color="#472268" class="mb-4">
+                            Seleccioná un periodo para comenzar a registrar horas.
+                        </v-alert>
+                        <template v-else>
+                            <v-row class="mb-4">
+                                <v-col cols="12" md="5">
+                                    <div v-if="entradaActiva" class="timer-card">
+                                        <div class="timer-label">Sesión activa</div>
+                                        <div class="timer-display">{{ timerDisplay }}</div>
+                                        <div class="timer-cohorte">
+                                            <v-icon size="14" color="#F78F21">mdi-school-outline</v-icon>
+                                            {{ entradaActiva.cohorte_nombre || 'Cohorte' }}
+                                        </div>
+                                        <v-btn class="btn-naranja mt-4" block prepend-icon="mdi-stop-circle" :loading="guardando" @click="marcarFin">
+                                            Finalizar sesión
+                                        </v-btn>
+                                    </div>
+                                    <div v-else class="inicio-card" @click="dialogInicio = true">
+                                        <v-icon size="56" color="#472268">mdi-play-circle-outline</v-icon>
+                                        <div style="font-size:1rem;font-weight:700;color:#472268;margin-top:12px;">Iniciar sesión</div>
+                                        <div style="font-size:0.8rem;color:#888;margin-top:4px;">Seleccioná tu cohorte y comenzá a registrar</div>
+                                    </div>
+                                </v-col>
+                                <v-col cols="12" md="7">
+                                    <v-card class="card-section pa-5" elevation="0" style="height:100%;">
+                                        <div class="d-flex align-center justify-space-between mb-4">
+                                            <div class="header-titulo">
+                                                <v-icon color="#472268" class="mr-1">mdi-chart-timeline-variant</v-icon>Mi reporte
+                                            </div>
+                                            <v-chip size="small" :class="'estado-' + (reporte?.estado || 'borrador')" variant="flat">
+                                                {{ estadoLabel(reporte?.estado) }}
+                                            </v-chip>
+                                        </div>
+                                        <v-row>
+                                            <v-col cols="6" class="text-center">
+                                                <div class="horas-total">{{ reporte?.total_horas || '0.00' }}</div>
+                                                <div class="horas-label">Horas totales</div>
+                                            </v-col>
+                                            <v-col cols="6" class="text-center">
+                                                <div class="horas-total" style="color:#03AE8E;">{{ entradas.length }}</div>
+                                                <div class="horas-label">Sesiones</div>
+                                            </v-col>
+                                        </v-row>
+                                        <div class="mt-3 mb-3">
+                                            <v-select
+                                                v-model="reporte.tipo_pago"
+                                                :items="[{title:'Mensual',value:'mensual'},{title:'Quincenal',value:'quincenal'}]"
+                                                item-title="title" item-value="value"
+                                                label="Tipo de pago" variant="outlined" density="compact" color="#472268" hide-details
+                                                :disabled="reporte?.estado !== 'borrador' && reporte?.estado !== 'rechazado'"
+                                            />
+                                        </div>
+                                        <v-btn v-if="reporte?.estado === 'borrador' || reporte?.estado === 'rechazado'"
+                                            class="btn-teal mt-2" block prepend-icon="mdi-send" :loading="guardando"
+                                            :disabled="entradas.length === 0 || !!entradaActiva" @click="enviarReporte">
+                                            Enviar al supervisor
+                                        </v-btn>
+                                        <v-alert v-if="reporte?.estado === 'rechazado'" type="error" variant="tonal" density="compact" class="mt-3">
+                                            <strong>Rechazado:</strong> {{ reporte.motivo_rechazo }}
+                                        </v-alert>
+                                        <v-alert v-if="reporte?.estado === 'enviado'" type="info" variant="tonal" density="compact" class="mt-3" color="#406494">
+                                            Reporte enviado. En espera de revisión.
+                                        </v-alert>
+                                        <v-alert v-if="reporte?.estado === 'aprobado'" type="warning" variant="tonal" density="compact" class="mt-3">
+                                            Aprobado por supervisor. En espera de autorización.
+                                        </v-alert>
+                                        <v-alert v-if="reporte?.estado === 'autorizado'" type="success" variant="tonal" density="compact" class="mt-3">
+                                            ✅ Autorizado. Pendiente de pago.
+                                        </v-alert>
+                                        <v-alert v-if="reporte?.estado === 'pagado'" type="success" variant="tonal" density="compact" class="mt-3" color="#472268">
+                                            💰 Pagado.
+                                        </v-alert>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+                            <v-card class="card-section" elevation="0">
+                                <v-card-title class="pa-4 pb-2 d-flex align-center">
+                                    <span class="header-titulo"><v-icon color="#472268" class="mr-1">mdi-clock-outline</v-icon>Mis sesiones</span>
+                                    <v-chip class="ml-2" color="#472268" size="small" variant="tonal">{{ entradas.length }}</v-chip>
+                                </v-card-title>
+                                <v-card-text class="pa-2">
+                                    <v-alert v-if="entradas.length === 0" type="info" variant="tonal" density="compact" color="#472268">Sin sesiones registradas aún.</v-alert>
+                                    <v-data-table v-else :headers="headersEntradas" :items="entradas" :items-per-page="10" elevation="0" density="compact">
+                                        <template v-slot:item.cohorte_nombre="{ item }">
+                                            <v-chip size="x-small" color="#472268" variant="tonal">{{ item.cohorte_nombre }}</v-chip>
+                                        </template>
+                                        <template v-slot:item.inicio="{ item }">{{ formatFecha(item.inicio) }}</template>
+                                        <template v-slot:item.fin="{ item }">
+                                            <span v-if="item.fin">{{ formatFecha(item.fin) }}</span>
+                                            <v-chip v-else size="x-small" color="#03AE8E" variant="tonal">Activa</v-chip>
+                                        </template>
+                                        <template v-slot:item.horas="{ item }">
+                                            <strong style="color:#472268;">{{ item.horas || '—' }}</strong>
+                                            <v-icon v-if="item.modificado" size="12" color="#F78F21">mdi-pencil</v-icon>
+                                        </template>
+                                        <template v-slot:item.acciones="{ item }">
+                                            <v-btn v-if="(reporte?.estado === 'borrador' || reporte?.estado === 'rechazado') && item.fin"
+                                                size="x-small" variant="tonal" color="#F78F21" prepend-icon="mdi-pencil"
+                                                @click="abrirCorreccion(item)">Corregir</v-btn>
+                                        </template>
+                                    </v-data-table>
+                                </v-card-text>
+                            </v-card>
+                        </template>
+                    </div>
+
+                    <!-- VISTA SUPERVISOR -->
+                    <div v-else-if="rolHoras === 'supervisor'">
+                        <v-card class="card-section" elevation="0">
+                            <v-card-title class="pa-4 pb-2 d-flex align-center">
+                                <span class="header-titulo"><v-icon color="#472268" class="mr-1">mdi-clipboard-check-outline</v-icon>Reportes pendientes de revisión</span>
+                                <v-chip class="ml-2" color="#406494" size="small" variant="tonal">{{ reportes.length }}</v-chip>
+                            </v-card-title>
+                            <v-card-text class="pa-2">
+                                <v-alert v-if="reportes.length === 0" type="success" variant="tonal" density="compact">Sin reportes pendientes.</v-alert>
+                                <v-data-table v-else :headers="headersReportes" :items="reportes" :items-per-page="15" elevation="0" density="compact">
+                                    <template v-slot:item.nombre="{ item }"><strong>{{ item.nombre }} {{ item.apellido }}</strong></template>
+                                    <template v-slot:item.total_horas="{ item }"><strong style="color:#472268;">{{ item.total_horas }} h</strong></template>
+                                    <template v-slot:item.tipo_pago="{ item }">
+                                        <v-chip size="x-small" :color="item.tipo_pago === 'quincenal' ? '#F78F21' : '#406494'" variant="tonal">{{ item.tipo_pago }}</v-chip>
+                                    </template>
+                                    <template v-slot:item.acciones="{ item }">
+                                        <div class="d-flex gap-1">
+                                            <v-btn size="x-small" variant="tonal" color="#472268" prepend-icon="mdi-eye" @click="verEntradas(item)">Ver</v-btn>
+                                            <v-btn size="x-small" variant="tonal" color="#03AE8E" prepend-icon="mdi-check" :loading="guardando" @click="aprobar(item)">Aprobar</v-btn>
+                                            <v-btn size="x-small" variant="tonal" color="#ED4A24" prepend-icon="mdi-close" @click="abrirRechazo(item)">Rechazar</v-btn>
+                                        </div>
+                                    </template>
+                                </v-data-table>
+                            </v-card-text>
+                        </v-card>
+                    </div>
+
+                    <!-- VISTA JEFE -->
+                    <div v-else-if="rolHoras === 'jefe'">
+                        <v-card class="card-section" elevation="0">
+                            <v-card-title class="pa-4 pb-2 d-flex align-center">
+                                <span class="header-titulo"><v-icon color="#472268" class="mr-1">mdi-shield-check-outline</v-icon>Reportes pendientes de autorización</span>
+                                <v-chip class="ml-2" color="#F78F21" size="small" variant="tonal">{{ reportes.length }}</v-chip>
+                            </v-card-title>
+                            <v-card-text class="pa-2">
+                                <v-alert v-if="reportes.length === 0" type="success" variant="tonal" density="compact">Sin reportes pendientes.</v-alert>
+                                <v-data-table v-else :headers="headersReportes" :items="reportes" :items-per-page="15" elevation="0" density="compact">
+                                    <template v-slot:item.nombre="{ item }"><strong>{{ item.nombre }} {{ item.apellido }}</strong></template>
+                                    <template v-slot:item.total_horas="{ item }"><strong style="color:#472268;">{{ item.total_horas }} h</strong></template>
+                                    <template v-slot:item.tipo_pago="{ item }">
+                                        <v-chip size="x-small" :color="item.tipo_pago === 'quincenal' ? '#F78F21' : '#406494'" variant="tonal">{{ item.tipo_pago }}</v-chip>
+                                    </template>
+                                    <template v-slot:item.aprobado_por_nombre="{ item }">
+                                        <span style="font-size:0.78rem;color:#888;">{{ item.aprobado_por_nombre }}</span>
+                                    </template>
+                                    <template v-slot:item.acciones="{ item }">
+                                        <div class="d-flex gap-1">
+                                            <v-btn size="x-small" variant="tonal" color="#472268" prepend-icon="mdi-eye" @click="verEntradas(item)">Ver</v-btn>
+                                            <v-btn size="x-small" variant="tonal" color="#03AE8E" prepend-icon="mdi-check-all" :loading="guardando" @click="autorizar(item)">Autorizar</v-btn>
+                                            <v-btn size="x-small" variant="tonal" color="#ED4A24" prepend-icon="mdi-close" @click="abrirRechazo(item)">Rechazar</v-btn>
+                                        </div>
+                                    </template>
+                                </v-data-table>
+                            </v-card-text>
+                        </v-card>
+                    </div>
+
+                    <!-- VISTA CONTADOR -->
+                    <div v-else-if="rolHoras === 'contador'">
+                        <v-card class="card-section" elevation="0">
+                            <v-card-title class="pa-4 pb-2 d-flex align-center">
+                                <span class="header-titulo"><v-icon color="#472268" class="mr-1">mdi-cash-multiple</v-icon>Reportes autorizados — pendientes de pago</span>
+                                <v-chip class="ml-2" color="#03AE8E" size="small" variant="tonal">{{ reportes.length }}</v-chip>
+                            </v-card-title>
+                            <v-card-text class="pa-2">
+                                <v-alert v-if="reportes.length === 0" type="success" variant="tonal" density="compact">Sin reportes pendientes de pago.</v-alert>
+                                <v-data-table v-else :headers="headersContador" :items="reportes" :items-per-page="15" elevation="0" density="compact">
+                                    <template v-slot:item.nombre="{ item }"><strong>{{ item.nombre }} {{ item.apellido }}</strong></template>
+                                    <template v-slot:item.total_horas="{ item }"><strong style="color:#472268;">{{ item.total_horas }} h</strong></template>
+                                    <template v-slot:item.tipo_pago="{ item }">
+                                        <v-chip size="x-small" :color="item.tipo_pago === 'quincenal' ? '#F78F21' : '#406494'" variant="tonal">{{ item.tipo_pago }}</v-chip>
+                                    </template>
+                                    <template v-slot:item.acciones="{ item }">
+                                        <div class="d-flex gap-1">
+                                            <v-btn size="x-small" variant="tonal" color="#472268" prepend-icon="mdi-eye" @click="verEntradas(item)">Ver</v-btn>
+                                            <v-btn size="x-small" variant="tonal" color="#03AE8E" prepend-icon="mdi-cash-check" :loading="guardando" @click="marcarPagado(item)">Marcar pagado</v-btn>
+                                        </div>
+                                    </template>
+                                </v-data-table>
+                            </v-card-text>
+                        </v-card>
+                    </div>
+
+                </div>
+
+            </v-container>
+        </v-main>
+
+        <!-- DIALOGS -->
+
+        <v-dialog v-model="dialogInicio" max-width="420" persistent>
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#472268,#120C24);color:#fff;">
+                    <v-icon class="mr-2">mdi-play-circle-outline</v-icon>Iniciar sesión
+                </v-card-title>
+                <v-card-text class="pa-5">
+                    <v-select v-model="cohorteSeleccionado" :items="cohortes" item-title="nombre" item-value="id"
+                        label="Seleccioná el cohorte *" variant="outlined" color="#472268" prepend-inner-icon="mdi-school-outline" />
+                    <v-alert v-if="errorForm" type="error" density="compact">{{ errorForm }}</v-alert>
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" color="#472268" @click="dialogInicio = false">Cancelar</v-btn>
+                    <v-btn class="btn-teal ml-2" :loading="guardando" @click="marcarInicio">Iniciar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="dialogCorreccion" max-width="480" persistent>
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#472268,#120C24);color:#fff;">
+                    <v-icon class="mr-2">mdi-pencil</v-icon>Corregir entrada
+                </v-card-title>
+                <v-card-text class="pa-5">
+                    <v-row>
+                        <v-col cols="12">
+                            <v-select v-model="formCorreccion.cohorte_id" :items="cohortes" item-title="nombre" item-value="id"
+                                label="Cohorte *" variant="outlined" density="compact" color="#472268" />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="formCorreccion.inicio" label="Inicio *" type="datetime-local" variant="outlined" density="compact" color="#472268" />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="formCorreccion.fin" label="Fin *" type="datetime-local" variant="outlined" density="compact" color="#472268" />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field v-model="formCorreccion.notas" label="Motivo de corrección" variant="outlined" density="compact" color="#472268" />
+                        </v-col>
+                    </v-row>
+                    <v-alert v-if="errorForm" type="error" density="compact">{{ errorForm }}</v-alert>
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" color="#472268" @click="dialogCorreccion = false">Cancelar</v-btn>
+                    <v-btn class="btn-teal ml-2" :loading="guardando" @click="guardarCorreccion">Guardar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="dialogRechazo" max-width="440" persistent>
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#ED4A24,#c03a1c);color:#fff;">
+                    <v-icon class="mr-2">mdi-close-circle-outline</v-icon>Rechazar reporte
+                </v-card-title>
+                <v-card-text class="pa-5">
+                    <div class="mb-3" style="font-size:0.85rem;color:#555;">
+                        Coach: <strong>{{ reporteSeleccionado?.nombre }} {{ reporteSeleccionado?.apellido }}</strong>
+                        — {{ reporteSeleccionado?.total_horas }} horas
+                    </div>
+                    <v-textarea v-model="motivoRechazo" label="Motivo de rechazo *" variant="outlined" color="#472268"
+                        rows="3" placeholder="Explicá por qué se rechaza..." auto-grow />
+                    <v-alert v-if="errorForm" type="error" density="compact">{{ errorForm }}</v-alert>
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" @click="dialogRechazo = false">Cancelar</v-btn>
+                    <v-btn color="#ED4A24" variant="flat" class="ml-2" :loading="guardando" @click="rechazar">Rechazar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="dialogEntradas" max-width="700">
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#472268,#120C24);color:#fff;">
+                    <v-icon class="mr-2">mdi-clock-outline</v-icon>
+                    Sesiones — {{ reporteSeleccionado?.nombre }} {{ reporteSeleccionado?.apellido }}
+                </v-card-title>
+                <v-card-text class="pa-4">
+                    <v-data-table :headers="headersEntradas" :items="entradasDetalle" :items-per-page="10" elevation="0" density="compact">
+                        <template v-slot:item.cohorte_nombre="{ item }">
+                            <v-chip size="x-small" color="#472268" variant="tonal">{{ item.cohorte_nombre }}</v-chip>
+                        </template>
+                        <template v-slot:item.inicio="{ item }">{{ formatFecha(item.inicio) }}</template>
+                        <template v-slot:item.fin="{ item }">{{ formatFecha(item.fin) }}</template>
+                        <template v-slot:item.horas="{ item }">
+                            <strong style="color:#472268;">{{ item.horas }}</strong>
+                            <v-icon v-if="item.modificado" size="12" color="#F78F21">mdi-pencil</v-icon>
+                        </template>
+                        <template v-slot:item.acciones="{ item }"><span></span></template>
+                    </v-data-table>
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" color="#472268" @click="dialogEntradas = false">Cerrar</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="dialogPeriodo" max-width="440" persistent>
+            <v-card rounded="lg">
+                <v-card-title class="pa-4" style="background:linear-gradient(135deg,#472268,#120C24);color:#fff;">
+                    <v-icon class="mr-2">mdi-calendar-plus</v-icon>Nuevo Periodo
+                </v-card-title>
+                <v-card-text class="pa-5">
+                    <v-row>
+                        <v-col cols="12" md="6">
+                            <v-select v-model="formPeriodo.mes" :items="meses" item-title="label" item-value="value"
+                                label="Mes *" variant="outlined" density="compact" color="#472268" @update:model-value="calcularPeriodo" />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-select v-model="formPeriodo.anio" :items="anios" label="Año *"
+                                variant="outlined" density="compact" color="#472268" @update:model-value="calcularPeriodo" />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field v-model="formPeriodo.nombre" label="Nombre del periodo" variant="outlined" density="compact" color="#472268" readonly />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="formPeriodo.fecha_inicio" label="Inicio" type="date" variant="outlined" density="compact" color="#472268" readonly />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                            <v-text-field v-model="formPeriodo.fecha_fin" label="Fin" type="date" variant="outlined" density="compact" color="#472268" readonly />
+                        </v-col>
+                    </v-row>
+                    <v-alert v-if="errorForm" type="error" density="compact">{{ errorForm }}</v-alert>
+                </v-card-text>
+                <v-card-actions class="pa-4 pt-0">
+                    <v-spacer />
+                    <v-btn variant="outlined" color="#472268" @click="dialogPeriodo = false">Cancelar</v-btn>
+                    <v-btn class="btn-purple ml-2" :loading="guardando" @click="crearPeriodo">Crear</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-snackbar v-model="snack.show" :color="snack.color" :timeout="3000" location="top right" rounded="lg">
+            {{ snack.msg }}
+        </v-snackbar>
+
+    </v-app>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3.4.0/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.js"></script>
+<script src="/nav.js"></script>
+<script>
+const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+const { createVuetify } = Vuetify;
+const vuetify = createVuetify();
+
+const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
+if (!usuario.id) window.location.href = '/index.html';
+
+const API     = '/api/horas';
+const HEADERS = { 'Content-Type': 'application/json' };
+
+createApp({
+    setup() {
+        const cargando  = ref(true);
+        const guardando = ref(false);
+        const errorForm = ref('');
+        const snack     = ref({ show: false, msg: '', color: '#03AE8E' });
+
+        const rolHoras = ref(usuario.permisos?.horas || null);
+
+        const rolLabel = computed(() => ({
+            coach:'Coach', supervisor:'Supervisor', jefe:'Jefe', contador:'Contador'
+        })[rolHoras.value] || 'Sin rol');
+
+        const iconoRol = computed(() => ({
+            coach:'mdi-account-tie', supervisor:'mdi-account-supervisor',
+            jefe:'mdi-shield-account', contador:'mdi-cash-register'
+        })[rolHoras.value] || 'mdi-account');
+
+        const estiloRolBadge = computed(() => ({
+            coach:      'background:rgba(71,34,104,0.12);color:#472268;',
+            supervisor: 'background:rgba(64,100,148,0.12);color:#406494;',
+            jefe:       'background:rgba(247,143,33,0.12);color:#F78F21;',
+            contador:   'background:rgba(3,174,142,0.12);color:#03AE8E;'
+        })[rolHoras.value] || '');
+
+        const periodos      = ref([]);
+        const periodoId     = ref(null);
+        const periodoActual = computed(() => periodos.value.find(p => p.id === periodoId.value));
+
+        const reporte             = ref(null);
+        const entradas            = ref([]);
+        const entradaActiva       = ref(null);
+        const cohortes            = ref([]);
+        const cohorteSeleccionado = ref(null);
+
+        const timerSegundos = ref(0);
+        let   timerInterval = null;
+
+        const timerDisplay = computed(() => {
+            const h = Math.floor(timerSegundos.value / 3600);
+            const m = Math.floor((timerSegundos.value % 3600) / 60);
+            const s = timerSegundos.value % 60;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        });
+
+        const iniciarTimer = () => {
+            if (!entradaActiva.value?.inicio) return;
+            const inicio = new Date(entradaActiva.value.inicio);
+            timerInterval = setInterval(() => {
+                timerSegundos.value = Math.floor((Date.now() - inicio.getTime()) / 1000);
+            }, 1000);
+        };
+
+        const detenerTimer = () => {
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+            timerSegundos.value = 0;
+        };
+
+        const reportes            = ref([]);
+        const reporteSeleccionado = ref(null);
+        const entradasDetalle     = ref([]);
+
+        const dialogInicio     = ref(false);
+        const dialogCorreccion = ref(false);
+        const dialogRechazo    = ref(false);
+        const dialogEntradas   = ref(false);
+        const dialogPeriodo    = ref(false);
+        const motivoRechazo    = ref('');
+        const formCorreccion   = ref({});
+        const entradaEditando  = ref(null);
+
+        const meses = [
+            {label:'Enero',value:1},{label:'Febrero',value:2},{label:'Marzo',value:3},
+            {label:'Abril',value:4},{label:'Mayo',value:5},{label:'Junio',value:6},
+            {label:'Julio',value:7},{label:'Agosto',value:8},{label:'Septiembre',value:9},
+            {label:'Octubre',value:10},{label:'Noviembre',value:11},{label:'Diciembre',value:12}
+        ];
+        const anioActual = new Date().getFullYear();
+        const anios      = [anioActual - 1, anioActual, anioActual + 1];
+        const formPeriodo = ref({ mes: null, anio: anioActual, nombre: '', fecha_inicio: '', fecha_fin: '' });
+
+        const calcularPeriodo = () => {
+            const { mes, anio } = formPeriodo.value;
+            if (!mes || !anio) return;
+            const mesAnt  = mes === 1 ? 12 : mes - 1;
+            const anioAnt = mes === 1 ? anio - 1 : anio;
+            formPeriodo.value.fecha_inicio = `${anioAnt}-${String(mesAnt).padStart(2,'0')}-25`;
+            formPeriodo.value.fecha_fin    = `${anio}-${String(mes).padStart(2,'0')}-24`;
+            formPeriodo.value.nombre       = `${meses.find(m => m.value === mes)?.label} ${anio}`;
+        };
+
+        const headersEntradas = [
+            { title:'Cohorte', key:'cohorte_nombre', sortable:false },
+            { title:'Inicio',  key:'inicio' },
+            { title:'Fin',     key:'fin' },
+            { title:'Horas',   key:'horas' },
+            { title:'Notas',   key:'notas', sortable:false },
+            { title:'',        key:'acciones', sortable:false }
+        ];
+        const headersReportes = [
+            { title:'Coach',        key:'nombre' },
+            { title:'Horas',        key:'total_horas' },
+            { title:'Tipo pago',    key:'tipo_pago' },
+            { title:'Aprobado por', key:'aprobado_por_nombre' },
+            { title:'Acciones',     key:'acciones', sortable:false }
+        ];
+        const headersContador = [
+            { title:'Coach',          key:'nombre' },
+            { title:'Horas',          key:'total_horas' },
+            { title:'Tipo pago',      key:'tipo_pago' },
+            { title:'Autorizado por', key:'autorizado_por_nombre' },
+            { title:'Acciones',       key:'acciones', sortable:false }
+        ];
+
+        const mostrarSnack = (msg, color = '#03AE8E') => { snack.value = { show:true, msg, color }; };
+        const formatFecha  = (f) => f ? new Date(f).toLocaleString('es-SV') : '—';
+        const estadoLabel  = (e) => ({ borrador:'Borrador', enviado:'Enviado', aprobado:'Aprobado', rechazado:'Rechazado', autorizado:'Autorizado', pagado:'Pagado' })[e] || e;
+
+        const logout = async () => {
+            await fetch('/api/auth/logout', { method:'POST', credentials:'include' });
+            localStorage.removeItem('usuario');
+            window.location.href = '/index.html';
+        };
+
+        const cargarPeriodos = async () => {
+            try {
+                const res  = await fetch(`${API}/periodos`, { credentials:'include' });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                periodos.value = data.data || [];
+                const abierto = periodos.value.find(p => p.estado === 'abierto');
+                if (abierto) periodoId.value = abierto.id;
+            } catch(e) { console.error('❌ cargarPeriodos:', e); }
+        };
+
+        const cargarVista = async () => {
+            if (!periodoId.value) return;
+            cargando.value = true;
+            try {
+                const r = rolHoras.value;
+                if      (r === 'coach')      await cargarCoach();
+                else if (r === 'supervisor') await cargarReportes('supervisor');
+                else if (r === 'jefe')       await cargarReportes('jefe');
+                else if (r === 'contador')   await cargarReportes('contador');
+            } finally { cargando.value = false; }
+        };
+
+        const cargarCoach = async () => {
+            detenerTimer();
+            try {
+                const res  = await fetch(`${API}/mi-reporte/${periodoId.value}`, { credentials:'include' });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                reporte.value       = data.reporte;
+                entradas.value      = data.entradas || [];
+                entradaActiva.value = data.activa   || null;
+                if (entradaActiva.value) iniciarTimer();
+            } catch(e) { console.error('❌ cargarCoach:', e); }
+        };
+
+        const marcarInicio = async () => {
+            errorForm.value = '';
+            if (!cohorteSeleccionado.value) { errorForm.value = 'Seleccioná un cohorte'; return; }
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/entrada/inicio`, {
+                    method:'POST', headers:HEADERS, credentials:'include',
+                    body: JSON.stringify({ reporte_id: reporte.value.id, cohorte_id: cohorteSeleccionado.value })
+                });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                if (!res.ok) { errorForm.value = data.error; return; }
+                dialogInicio.value = false;
+                cohorteSeleccionado.value = null;
+                mostrarSnack('Sesión iniciada ✓');
+                await cargarCoach();
+            } catch(e) { errorForm.value = 'Error de conexión'; }
+            finally { guardando.value = false; }
+        };
+
+        const marcarFin = async () => {
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/entrada/${entradaActiva.value.id}/fin`, {
+                    method:'PATCH', headers:HEADERS, credentials:'include',
+                    body: JSON.stringify({ reporte_id: reporte.value.id })
+                });
+                if (res.status === 401) { logout(); return; }
+                if (!res.ok) { mostrarSnack('Error al finalizar', '#ED4A24'); return; }
+                detenerTimer();
+                mostrarSnack('Sesión finalizada ✓');
+                await cargarCoach();
+            } catch(e) { mostrarSnack('Error de conexión', '#ED4A24'); }
+            finally { guardando.value = false; }
+        };
+
+        const abrirCorreccion = (item) => {
+            entradaEditando.value = item;
+            formCorreccion.value  = {
+                cohorte_id: item.cohorte_id,
+                inicio: item.inicio ? item.inicio.slice(0,16) : '',
+                fin:    item.fin    ? item.fin.slice(0,16)    : '',
+                notas:  item.notas  || ''
+            };
+            errorForm.value = '';
+            dialogCorreccion.value = true;
+        };
+
+        const guardarCorreccion = async () => {
+            errorForm.value = '';
+            const { cohorte_id, inicio, fin } = formCorreccion.value;
+            if (!cohorte_id || !inicio || !fin) { errorForm.value = 'Cohorte, inicio y fin son requeridos'; return; }
+            if (new Date(fin) <= new Date(inicio)) { errorForm.value = 'El fin debe ser posterior al inicio'; return; }
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/entrada/${entradaEditando.value.id}`, {
+                    method:'PUT', headers:HEADERS, credentials:'include',
+                    body: JSON.stringify({ ...formCorreccion.value, reporte_id: reporte.value.id })
+                });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                if (!res.ok) { errorForm.value = data.error; return; }
+                dialogCorreccion.value = false;
+                mostrarSnack('Entrada corregida ✓');
+                await cargarCoach();
+            } catch(e) { errorForm.value = 'Error de conexión'; }
+            finally { guardando.value = false; }
+        };
+
+        const enviarReporte = async () => {
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/reporte/${reporte.value.id}/enviar`, {
+                    method:'PATCH', headers:HEADERS, credentials:'include'
+                });
+                if (res.status === 401) { logout(); return; }
+                if (!res.ok) { mostrarSnack('Error al enviar', '#ED4A24'); return; }
+                mostrarSnack('Reporte enviado al supervisor ✓');
+                await cargarCoach();
+            } catch(e) { mostrarSnack('Error de conexión', '#ED4A24'); }
+            finally { guardando.value = false; }
+        };
+
+        const cargarReportes = async (rol) => {
+            try {
+                const res  = await fetch(`${API}/${rol}?periodo_id=${periodoId.value}`, { credentials:'include' });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                reportes.value = data.data || [];
+            } catch(e) { console.error('❌ cargarReportes:', e); }
+        };
+
+        const verEntradas = async (item) => {
+            reporteSeleccionado.value = item;
+            entradasDetalle.value     = [];
+            dialogEntradas.value      = true;
+            try {
+                const res  = await fetch(`${API}/reporte/${item.id}/entradas`, { credentials:'include' });
+                const data = await res.json();
+                entradasDetalle.value = data.data || [];
+            } catch(e) { console.error('❌ verEntradas:', e); }
+        };
+
+        const aprobar = async (item) => {
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/reporte/${item.id}/aprobar`, {
+                    method:'PATCH', headers:HEADERS, credentials:'include'
+                });
+                if (res.status === 401) { logout(); return; }
+                if (!res.ok) { mostrarSnack('Error al aprobar', '#ED4A24'); return; }
+                mostrarSnack(`Reporte de ${item.nombre} aprobado ✓`);
+                await cargarReportes('supervisor');
+            } catch(e) { mostrarSnack('Error de conexión', '#ED4A24'); }
+            finally { guardando.value = false; }
+        };
+
+        const autorizar = async (item) => {
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/reporte/${item.id}/autorizar`, {
+                    method:'PATCH', headers:HEADERS, credentials:'include',
+                    body: JSON.stringify({ periodo_id: periodoId.value })
+                });
+                if (res.status === 401) { logout(); return; }
+                if (!res.ok) { mostrarSnack('Error al autorizar', '#ED4A24'); return; }
+                mostrarSnack(`Reporte de ${item.nombre} autorizado ✓`);
+                await cargarReportes('jefe');
+            } catch(e) { mostrarSnack('Error de conexión', '#ED4A24'); }
+            finally { guardando.value = false; }
+        };
+
+        const abrirRechazo = (item) => {
+            reporteSeleccionado.value = item;
+            motivoRechazo.value       = '';
+            errorForm.value           = '';
+            dialogRechazo.value       = true;
+        };
+
+        const rechazar = async () => {
+            errorForm.value = '';
+            if (!motivoRechazo.value.trim()) { errorForm.value = 'El motivo es requerido'; return; }
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/reporte/${reporteSeleccionado.value.id}/rechazar`, {
+                    method:'PATCH', headers:HEADERS, credentials:'include',
+                    body: JSON.stringify({ motivo: motivoRechazo.value })
+                });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                if (!res.ok) { errorForm.value = data.error; return; }
+                dialogRechazo.value = false;
+                mostrarSnack('Reporte rechazado. Coach notificado.', '#ED4A24');
+                await cargarReportes(rolHoras.value === 'supervisor' ? 'supervisor' : 'jefe');
+            } catch(e) { errorForm.value = 'Error de conexión'; }
+            finally { guardando.value = false; }
+        };
+
+        const marcarPagado = async (item) => {
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/reporte/${item.id}/pagar`, {
+                    method:'PATCH', headers:HEADERS, credentials:'include'
+                });
+                if (res.status === 401) { logout(); return; }
+                if (!res.ok) { mostrarSnack('Error', '#ED4A24'); return; }
+                mostrarSnack(`${item.nombre} marcado como pagado ✓`);
+                await cargarReportes('contador');
+            } catch(e) { mostrarSnack('Error de conexión', '#ED4A24'); }
+            finally { guardando.value = false; }
+        };
+
+        const crearPeriodo = async () => {
+            errorForm.value = '';
+            const { nombre, fecha_inicio, fecha_fin } = formPeriodo.value;
+            if (!nombre || !fecha_inicio || !fecha_fin) { errorForm.value = 'Seleccioná mes y año'; return; }
+            guardando.value = true;
+            try {
+                const res = await fetch(`${API}/periodos`, {
+                    method:'POST', headers:HEADERS, credentials:'include',
+                    body: JSON.stringify({ nombre, fecha_inicio, fecha_fin })
+                });
+                if (res.status === 401) { logout(); return; }
+                const data = await res.json();
+                if (!res.ok) { errorForm.value = data.error; return; }
+                dialogPeriodo.value = false;
+                mostrarSnack('Periodo creado ✓');
+                await cargarPeriodos();
+                periodoId.value = data.id;
+                await cargarVista();
+            } catch(e) { errorForm.value = 'Error de conexión'; }
+            finally { guardando.value = false; }
+        };
+
+        onMounted(async () => {
+            try {
+                if (rolHoras.value === 'coach') {
+                    const rc = await fetch(`${API}/cohortes`, { credentials:'include' });
+                    if (rc.ok) { const dc = await rc.json(); cohortes.value = dc.data || []; }
+                }
+                await cargarPeriodos();
+                await cargarVista();
+            } finally { cargando.value = false; }
+        });
+
+        onUnmounted(() => detenerTimer());
+
+        return {
+            cargando, guardando, errorForm, snack,
+            rolHoras, rolLabel, iconoRol, estiloRolBadge,
+            periodos, periodoId, periodoActual, cargarVista,
+            reporte, entradas, entradaActiva, cohortes, cohorteSeleccionado,
+            timerDisplay,
+            reportes, reporteSeleccionado, entradasDetalle,
+            dialogInicio, dialogCorreccion, dialogRechazo, dialogEntradas, dialogPeriodo,
+            motivoRechazo, formCorreccion, formPeriodo, meses, anios,
+            headersEntradas, headersReportes, headersContador,
+            marcarInicio, marcarFin, abrirCorreccion, guardarCorreccion, enviarReporte,
+            aprobar, autorizar, abrirRechazo, rechazar, marcarPagado,
+            verEntradas, crearPeriodo, calcularPeriodo,
+            formatFecha, estadoLabel, logout
+        };
+    }
+}).component('kodigo-nav', window.KodigoNav).use(vuetify).mount('#app');
+</script>
+</body>
+</html>

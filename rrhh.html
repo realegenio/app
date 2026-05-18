@@ -24,23 +24,14 @@
         .emp-sub    { font-size: 0.78rem; color: #888; margin-top: 4px; }
     </style>
 </head>
-<body>
+<body class="with-nav">
 <div id="app">
     <v-app>
 
-        <!-- APP BAR -->
-        <v-app-bar class="app-bar-custom" flat>
-            <v-app-bar-title>
-                <img src="/pictures/logoKodigo.png" alt="Kodigo" style="height:36px;vertical-align:middle;margin-right:10px;" />
-                <span style="color:#fff;font-weight:600;">Recursos Humanos</span>
-            </v-app-bar-title>
-            <template v-slot:append>
-                <span class="mr-3 text-caption" style="color:rgba(255,255,255,0.7);">{{ usuarioActivo.nombre }}</span>
-                <v-btn icon="mdi-logout" variant="text" color="white" @click="logout"></v-btn>
-            </template>
-        </v-app-bar>
+      
+        <kodigo-nav page="rrhh"></kodigo-nav>
 
-        <v-main>
+        <v-main style="margin-left: 220px;">
             <v-container fluid class="pa-6">
 
                 <!-- FILTROS -->
@@ -325,6 +316,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/vue@3.4.0/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/vuetify@3.7.0/dist/vuetify.min.js"></script>
+<script src="/nav.js"></script>
 <script>
         const { createApp, ref, onMounted } = Vue;
         const { createVuetify } = Vuetify;
@@ -566,12 +558,6 @@
                 };
 
 
-
-
-
-
-
-
                 return {
                     filtros, buscado, cargando, empleados, catalogos, toItems, snack,
                     dialogForm, dialogFoto, modoEditar, guardando, subiendoFoto,
@@ -582,7 +568,7 @@
                     abrirContactos, agregarContacto, eliminarContacto,empSeleccionado
                 };
             }
-        }).use(vuetify).mount('#app');
+        }).component('kodigo-nav', window.KodigoNav).use(vuetify).mount('#app');
 </script>
 </body>
 </html>
